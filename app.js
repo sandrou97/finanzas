@@ -134,6 +134,7 @@ function viewAjustes() {
     '<div class="card"><div style="font-weight:600">Presupuesto libre por ciclo (€)</div>' + lib.map(k => '<div class="set"><span>' + CATS[k].n + '</span><input class="inp" data-b="' + k + '" type="number" step="1" inputmode="decimal" value="' + ((b[k] || 0) / 100) + '"></div>').join('') +
     '<div class="set"><b>Total</b><b id="btot">' + eur(libreBudget()) + '</b></div></div>' +
     '<button class="btn" id="saveCfg">Guardar ajustes</button>' +
+    '<div class="card"><div style="font-weight:600">Copia de seguridad</div><div class="sub" style="margin:0">Exporta todos tus datos a un archivo, o importa uno para cargarlos de golpe (por ejemplo, el de la carga inicial).</div><div class="f"><button class="btn sec" id="exp">Exportar</button><button class="btn sec" id="imp">Importar</button></div><input type="file" id="impf" accept="application/json,.json" hidden></div>' +
     (isDemo ? '<button class="btn sec" id="reset">Restablecer datos de demo</button>' : '<button class="btn sec" id="out">Cerrar sesión</button>');
 }
 function viewLogin() {
@@ -172,6 +173,27 @@ function bindAjustes() {
     const budgets = {}; document.querySelectorAll('[data-b]').forEach(i => budgets[i.dataset.b] = Math.round((parseFloat(i.value) || 0) * 100));
     const cs = Math.min(28, Math.max(1, parseInt($('#cs').value) || 25));
     await store.saveConfig({ cycleStart: cs, budgets, reservaSaldo: Math.round((parseFloat($('#rs').value) || 0) * 100), reservaMes: Math.round((parseFloat($('#rm').value) || 0) * 100) }); toast('Ajustes guardados');
+  };
+  $('#exp').onclick = async () => {
+    const take = k => new Promise(res => { const u = store.subscribeList(k, l => { u(); res(l); }); });
+    const movs = await allMovs();
+    const data = { version: 1, config: S.cfg, fijos: await take('fijos'), anuales: await take('anuales'), movs };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
+    const l = document.createElement('a'); l.href = url; l.download = 'finanzas-' + iso(new Date()) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  $('#imp').onclick = () => $('#impf').click();
+  $('#impf').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text()); const n = (d.movs || []).length + (d.fijos || []).length + (d.anuales || []).length;
+      if (!confirm('Se van a importar ' + n + ' elementos (los que ya existan con el mismo id se sobrescriben). ¿Continuar?')) return;
+      if (d.config) await store.saveConfig(Object.assign({}, DEFAULT_CFG, d.config));
+      for (const x of d.fijos || []) await store.saveItem('fijos', x);
+      for (const x of d.anuales || []) await store.saveItem('anuales', x);
+      for (const x of d.movs || []) await store.saveMov(x);
+      toast('Importado: ' + n + ' elementos');
+    } catch (err) { toast('Archivo no válido'); console.error(err); }
+    e.target.value = '';
   };
   const o = $('#out'); if (o) o.onclick = () => store.signOut();
   const r = $('#reset'); if (r) r.onclick = () => { if (confirm('¿Restablecer los datos de demo?')) store.resetDemo(); };
@@ -303,6 +325,15 @@ function openItem(kind, it) {
   draw(); bg.classList.add('on');
 }
 
+async function allMovs() {
+  // Exporta los meses desde 12 atrás hasta 3 adelante del actual
+  const out = []; const base = curKey();
+  for (let i = -12; i <= 3; i++) {
+    const k = shiftKey(base, i);
+    out.push(...await new Promise(res => { const u = store.subscribeMonth(k, l => { u(); res(l); }); }));
+  }
+  return out;
+}
 /* ------------------------------ datos y arranque ------------------------------ */
 function subscribe() {
   if (S.unsubM) S.unsubM();
