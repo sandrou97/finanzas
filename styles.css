@@ -83,3 +83,7 @@ h2{font-size:16px;font-weight:600;margin:0;padding:0 4px}
 .hint{background:#E3F3F0;color:#0A4F45;border-radius:16px;padding:12px 14px;font-size:13px;line-height:1.4}
 .hint.warn{background:var(--warn-bg);color:var(--warn-ink)}
 :root[data-theme=dark] .hint:not(.warn){background:#12302C;color:#9FE8D8}
+
+.gear{border:1px solid var(--line);background:var(--card);border-radius:14px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+.step{display:flex;align-items:center;gap:10px;font-size:14px}.step i{width:10px;height:10px;border-radius:5px;background:var(--hero-accent);flex:none}.step span{flex:1;opacity:.9}.step b{font-variant-numeric:tabular-nums}
+.goal{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;width:100%;text-align:left}

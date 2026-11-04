@@ -49,13 +49,13 @@ const ICON = {
   home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   cog: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
-  rep: '<path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/>', cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>', tick: '<path d="M5 12l5 5L20 7"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>', rep: '<path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/>', cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>', tick: '<path d="M5 12l5 5L20 7"/>',
   l: '<path d="M15 18l-6-6 6-6"/>', r: '<path d="M9 18l6-6-6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>'
 };
 const svg = k => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + ICON[k] + '</svg>';
 
 /* --------------------------------- estado --------------------------------- */
-const S = { fijos: [], anuales: [], user: null, cfg: DEFAULT_CFG, tab: 'inicio', key: null, movs: [], filter: 'todos', unsubM: null, unsubC: null, ready: false };
+const S = { fijos: [], anuales: [], metas: [], user: null, cfg: DEFAULT_CFG, tab: 'inicio', key: null, movs: [], filter: 'todos', unsubM: null, unsubC: null, ready: false };
 
 function curKey() { return monthKeyOf(iso(new Date()), S.cfg.cycleStart); }
 
@@ -79,8 +79,8 @@ const libreBudget = () => Object.keys(CATS).filter(k => CATS[k].libre).reduce((s
 /* --------------------------------- vistas --------------------------------- */
 function shell(inner) {
   return '<main id="main">' + inner + '</main>' +
-    '<button class="fab" id="fab" aria-label="Añadir" style="' + (S.tab === 'ajustes' ? 'display:none' : '') + '"><svg viewBox="0 0 24 24">' + ICON.plus + '</svg></button>' +
-    '<nav class="tabs">' + [['inicio', 'Inicio', 'home'], ['registro', 'Registro', 'list'], ['fijos', 'Fijos', 'rep'], ['anuales', 'Anuales', 'cal'], ['ajustes', 'Ajustes', 'cog']].map(t =>
+    '<button class="fab" id="fab" aria-label="Añadir" style="' + (S.tab === 'ajustes' || S.tab === 'inicio' && false ? 'display:none' : '') + '"><svg viewBox="0 0 24 24">' + ICON.plus + '</svg></button>' +
+    '<nav class="tabs">' + [['inicio', 'Inicio', 'home'], ['registro', 'Registro', 'list'], ['fijos', 'Fijos', 'rep'], ['anuales', 'Anuales', 'cal'], ['metas', 'Metas', 'target']].map(t =>
       '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" data-tab="' + t[0] + '">' + svg(t[2]) + t[1] + '</button>').join('') + '</nav>';
 }
 function mnav() {
@@ -96,7 +96,7 @@ function viewInicio() {
     const sp = r.por[k] || 0, bg = S.cfg.budgets[k] || 0, p = bg ? Math.min(100, Math.round(sp / bg * 100)) : (sp ? 100 : 0);
     return '<div class="cat"><div class="t"><span>' + CATS[k].n + '</span><span>' + eur(sp) + ' de ' + eur(bg) + '</span></div><div class="bar"><i style="width:' + p + '%;background:' + (sp > bg ? 'var(--neg)' : CATS[k].col) + '"></i></div></div>';
   }).join('');
-  return '<div class="head"><div><h1>Inicio</h1><div class="sub">' + fdate(a) + ' – ' + fdate(b) + '</div></div>' + mnav() + '</div>' +
+  return '<div class="head"><div><h1>Inicio</h1><div class="sub">' + fdate(a) + ' – ' + fdate(b) + '</div></div><div style="display:flex;gap:6px;align-items:center">' + mnav() + '<button class="gear" data-tab="ajustes" aria-label="Ajustes">' + svg('cog') + '</button></div></div>' +
     '<div class="hero"><div class="l">Te queda para gastos libres</div><div class="big' + (left < 0 ? '" style="color:#FF8A80' : '') + '">' + eur(left) + '</div>' +
     '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
     '<div class="row2"><span>Gastado <b>' + eur(r.libre) + '</b> de ' + eur(bud) + '</span>' + (perDay != null ? '<span><b>' + eur(Math.round(perDay)) + '</b> al día</span>' : '') + '</div></div>' +
@@ -125,7 +125,7 @@ function viewRegistro() {
 function viewAjustes() {
   const th = localStorage.getItem('fin-theme') || 'auto';
   const b = S.cfg.budgets, lib = Object.keys(CATS).filter(k => CATS[k].libre);
-  return '<div class="head"><div><h1>Ajustes</h1><div class="sub">' + esc(S.user ? S.user.name : '') + '</div></div></div>' +
+  return '<div class="head"><div style="display:flex;gap:10px;align-items:center"><button class="gear" data-tab="inicio" aria-label="Volver">' + svg('l') + '</button><div><h1>Ajustes</h1><div class="sub">' + esc(S.user ? S.user.name : '') + '</div></div></div></div>' +
     (isDemo ? '<div class="banner"><b>Modo demo.</b> Los datos solo se guardan en este navegador. Configura Firebase (ver README) para sincronizar entre dispositivos.</div>' : '') +
     '<div class="card"><div style="font-weight:600">Tema</div><div class="seg" id="theme">' + [['auto', 'Auto'], ['light', 'Claro'], ['dark', 'Oscuro']].map(t => '<button data-th="' + t[0] + '" class="' + (th === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</div></div>' +
     '<div class="card"><div style="font-weight:600">Ciclo</div><div class="set"><span>Día en que empieza tu ciclo (cobro)</span><input class="inp" id="cs" type="number" min="1" max="28" value="' + S.cfg.cycleStart + '"></div>' +
@@ -146,13 +146,15 @@ function render() {
   const app = $('#app');
   if (!S.user) { app.innerHTML = S.ready ? viewLogin() : '<div class="login"><div class="sub">Cargando…</div></div>'; const b = $('#login'); if (b) b.onclick = async () => { try { await store.signIn(); } catch (e) { $('#lerr').textContent = 'No se pudo iniciar sesión: ' + (e.code || e.message); } }; return; }
   const keep = $('#main') ? $('#main').scrollTop : 0;
-  app.innerHTML = shell(({ inicio: viewInicio, registro: viewRegistro, fijos: viewFijos, anuales: viewAnuales, ajustes: viewAjustes })[S.tab]());
+  app.innerHTML = shell(({ inicio: viewInicio, registro: viewRegistro, fijos: viewFijos, anuales: viewAnuales, metas: viewMetas, ajustes: viewAjustes })[S.tab]());
   $('#main').scrollTop = keep;
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
+  app.querySelectorAll('[data-meta]').forEach(b => b.onclick = () => openMeta(S.metas.find(x => x.id === b.dataset.meta)));
+  const dd = $('#deuda'); if (dd) dd.onclick = openDeuda;
   app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.key = shiftKey(S.key, +b.dataset.m); subscribe(); render(); });
   app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { S.filter = b.dataset.f; render(); });
   app.querySelectorAll('[data-id]').forEach(b => b.onclick = () => openSheet(S.movs.find(m => m.id === b.dataset.id)));
-  $('#fab').onclick = () => S.tab === 'fijos' ? openItem('fijos', null) : S.tab === 'anuales' ? openItem('anuales', null) : openSheet(null);
+  $('#fab').onclick = () => S.tab === 'fijos' ? openItem('fijos', null) : S.tab === 'anuales' ? openItem('anuales', null) : S.tab === 'metas' ? openMeta(null) : openSheet(null);
   app.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => toggleFijo(b.dataset.chk));
   app.querySelectorAll('[data-achk]').forEach(b => b.onclick = () => toggleAnual(b.dataset.achk));
   app.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { const [k, id] = b.dataset.edit.split(':'); openItem(k, S[k].find(x => x.id === id)); });
@@ -172,12 +174,12 @@ function bindAjustes() {
   $('#saveCfg').onclick = async () => {
     const budgets = {}; document.querySelectorAll('[data-b]').forEach(i => budgets[i.dataset.b] = Math.round((parseFloat(i.value) || 0) * 100));
     const cs = Math.min(28, Math.max(1, parseInt($('#cs').value) || 25));
-    await store.saveConfig({ cycleStart: cs, budgets, reservaSaldo: Math.round((parseFloat($('#rs').value) || 0) * 100), reservaMes: Math.round((parseFloat($('#rm').value) || 0) * 100) }); toast('Ajustes guardados');
+    await store.saveConfig({ ...S.cfg, cycleStart: cs, budgets, reservaSaldo: Math.round((parseFloat($('#rs').value) || 0) * 100), reservaMes: Math.round((parseFloat($('#rm').value) || 0) * 100) }); toast('Ajustes guardados');
   };
   $('#exp').onclick = async () => {
-    const take = k => new Promise(res => { const u = store.subscribeList(k, l => { u(); res(l); }); });
+    const take = k => once(cb => store.subscribeList(k, cb));
     const movs = await allMovs();
-    const data = { version: 1, config: S.cfg, fijos: await take('fijos'), anuales: await take('anuales'), movs };
+    const data = { version: 1, config: S.cfg, fijos: await take('fijos'), anuales: await take('anuales'), metas: await take('metas'), movs };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
     const l = document.createElement('a'); l.href = url; l.download = 'finanzas-' + iso(new Date()) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
@@ -185,11 +187,12 @@ function bindAjustes() {
   $('#impf').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     try {
-      const d = JSON.parse(await f.text()); const n = (d.movs || []).length + (d.fijos || []).length + (d.anuales || []).length;
+      const d = JSON.parse(await f.text()); const n = (d.movs || []).length + (d.fijos || []).length + (d.anuales || []).length + (d.metas || []).length;
       if (!confirm('Se van a importar ' + n + ' elementos (los que ya existan con el mismo id se sobrescriben). ¿Continuar?')) return;
       if (d.config) await store.saveConfig(Object.assign({}, DEFAULT_CFG, d.config));
       for (const x of d.fijos || []) await store.saveItem('fijos', x);
       for (const x of d.anuales || []) await store.saveItem('anuales', x);
+      for (const x of d.metas || []) await store.saveItem('metas', x);
       for (const x of d.movs || []) await store.saveMov(x);
       toast('Importado: ' + n + ' elementos');
     } catch (err) { toast('Archivo no válido'); console.error(err); }
@@ -325,12 +328,84 @@ function openItem(kind, it) {
   draw(); bg.classList.add('on');
 }
 
+
+/* ------------------------------ deuda y metas ------------------------------ */
+const mk = (y, m) => y + '-' + pad(m);
+function loanSchedule(c, withPlan) {
+  const R = c.rate / 100 / 12, rows = [];
+  let bal = c.d0, [y, m] = c.start.split('-').map(Number), interest = 0, fees = 0;
+  for (let i = 0; i < 120 && bal > 0; i++) {
+    const key = mk(y, m), int = Math.round(bal * R), pay = Math.min(c.cuota, bal + int);
+    bal = bal + int - pay; interest += int;
+    const dim = new Date(y, m, 0).getDate();
+    rows.push({ key, date: new Date(y, m - 1, Math.min(30, dim)), bal, kind: 'cuota' });
+    if (withPlan && bal > 0) {
+      if (c.extra && key === c.extraMes) { const e = Math.min(c.extra, bal); bal -= e; fees += Math.round(e * c.fee / 100); rows.push({ key, date: new Date(y, m - 1, Math.min(30, dim)), bal, kind: 'extra', a: e }); }
+      if (bal > 0 && c.liquida && key === c.liquida) { fees += Math.round(bal * c.fee / 100); rows.push({ key, date: new Date(y, m - 1, Math.min(30, dim)), bal: 0, kind: 'liquida', a: bal, fee: Math.round(bal * c.fee / 100) }); bal = 0; }
+    }
+    if (++m > 12) { m = 1; y++; }
+  }
+  return { rows, interest, fees };
+}
+function viewMetas() {
+  const c = S.cfg.deuda, plan = loanSchedule(c, true), base = loanSchedule(c, false), now = new Date();
+  const paid = plan.rows.filter(r => r.date <= now && r.kind === 'cuota'), cur = paid.length ? paid[paid.length - 1].bal : c.d0;
+  const upcoming = plan.rows.filter(r => r.date > now || (r.kind !== 'cuota' && r.date >= now));
+  const dot = '<i></i>', shown = [];
+  upcoming.forEach(r => {
+    if (r.kind === 'cuota' && shown.some(x => x.kind === 'cuota')) return;
+    shown.push(r);
+  });
+  const lbl = r => r.kind === 'cuota' ? 'Tras la cuota de ' + MES[Number(r.key.split('-')[1]) - 1].slice(0, 3) : r.kind === 'extra' ? MES[Number(r.key.split('-')[1]) - 1].slice(0, 3) + ' · pago extra de ' + eur(r.a) : MES[Number(r.key.split('-')[1]) - 1].slice(0, 3) + ' ' + r.key.split('-')[0] + ' · liquidas con ' + eur(r.a + r.fee);
+  const saved = base.interest - plan.interest - plan.fees;
+  const ex = c.extra ? Math.round(c.extra * (1 + c.fee / 100)) : 0, pct = ex ? Math.min(100, Math.round(S.cfg.ahorroSaldo / ex * 100)) : 0;
+  const last = plan.rows[plan.rows.length - 1];
+  return '<div class="head"><div><h1>Metas</h1><div class="sub">Lo que debes y a dónde vas</div></div></div>' +
+    '<div class="hero"><div class="row2"><span class="l">Debes del coche</span><span class="l">' + c.rate.toLocaleString('de-DE') + ' % · cuota ' + eur(c.cuota) + '</span></div><div class="big">' + eur(cur) + '</div><div style="display:flex;flex-direction:column;gap:8px">' +
+    shown.map(r => '<div class="step"><i></i><span>' + lbl(r) + '</span><b>' + eur(r.bal) + '</b></div>').join('') + '</div></div>' +
+    (saved > 0 ? '<div class="hint">Con este plan terminas de pagar en <b>' + MES[Number(last.key.split('-')[1]) - 1] + ' ' + last.key.split('-')[0] + '</b> y te ahorras unos <b>' + eur(saved) + '</b> entre intereses y comisiones, frente a seguir pagando la cuota hasta el final.</div>' : '') +
+    (ex ? '<div class="card"><div class="row2"><b>Ahorro para el pago extra</b><span style="color:var(--muted)">' + MES[Number(c.extraMes.split('-')[1]) - 1].slice(0, 3) + '</span></div><div class="row2" style="align-items:baseline"><span style="font-size:24px;font-weight:700;font-variant-numeric:tabular-nums">' + eur(S.cfg.ahorroSaldo) + '</span><span style="color:var(--muted)">de ' + eur(ex) + ' (extra + ' + c.fee + ' % de comisión)</span></div><div class="bar"><i style="width:' + pct + '%"></i></div></div>' : '') +
+    '<button class="btn sec" id="deuda">Editar plan de la deuda y ahorro</button>' +
+    '<h2>Metas</h2>' + (S.metas.map(g => {
+      const p = g.goal ? Math.min(100, Math.round(g.now / g.goal * 100)) : 0;
+      return '<button class="goal" data-meta="' + g.id + '"><div class="row2"><b>' + esc(g.n) + '</b><span style="color:var(--muted);font-size:12px">' + esc(g.when || '') + '</span></div><div class="row2" style="align-items:baseline"><span style="font-size:18px;font-weight:700;font-variant-numeric:tabular-nums">' + eur(g.now) + '</span><span style="color:var(--muted)">de ' + eur(g.goal) + '</span></div><div class="bar" style="height:7px"><i style="width:' + p + '%;background:' + (g.color || 'var(--accent)') + '"></i></div></button>';
+    }).join('') || '<div class="empty">Pulsa + para añadir una meta.</div>');
+}
+function openMeta(g) {
+  const ed = !!g, st = ed ? Object.assign({}, g) : { id: newId(), n: '', when: '', goal: 0, now: 0, color: '#0B7A6B' };
+  const bg = $('#sheetBg'), sh = $('#sheet'), close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
+  sh.innerHTML = '<div style="font-weight:700;font-size:18px">' + (ed ? 'Editar meta' : 'Nueva meta') + '</div><input class="inp" id="mn" placeholder="Nombre" value="' + esc(st.n) + '"><input class="inp" id="mw" placeholder="Cuándo (texto libre)" value="' + esc(st.when) + '"><div class="f"><input class="inp" id="mg" type="number" step="0.01" inputmode="decimal" placeholder="Objetivo €" value="' + (st.goal ? st.goal / 100 : '') + '"><input class="inp" id="mo" type="number" step="0.01" inputmode="decimal" placeholder="Llevas €" value="' + (st.now ? st.now / 100 : '') + '"></div><button class="btn" id="sv">Guardar</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
+  $('#cx').onclick = close;
+  $('#sv').onclick = async () => {
+    const n = $('#mn').value.trim(), goal = Math.round((parseFloat($('#mg').value) || 0) * 100); if (!n || !goal) { toast('Pon nombre y objetivo'); return; }
+    await store.saveItem('metas', Object.assign({}, st, { n, when: $('#mw').value.trim(), goal, now: Math.round((parseFloat($('#mo').value) || 0) * 100) })); close(); toast('Guardado');
+  };
+  const dl = $('#dl'); if (dl) dl.onclick = async () => { if (confirm('¿Eliminar?')) { await store.deleteItem('metas', st.id); close(); } };
+  bg.onclick = e => { if (e.target === bg) close(); }; bg.classList.add('on');
+}
+function openDeuda() {
+  const c = S.cfg.deuda, bg = $('#sheetBg'), sh = $('#sheet'), close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
+  const opts = (sel) => { let o = '<option value="">Ninguno</option>', [y, m] = c.start.split('-').map(Number); for (let i = 0; i < 40; i++) { const k = mk(y, m); o += '<option value="' + k + '"' + (sel === k ? ' selected' : '') + '>' + MES[m - 1] + ' ' + y + '</option>'; if (++m > 12) { m = 1; y++; } } return o; };
+  sh.innerHTML = '<div style="font-weight:700;font-size:18px">Plan de la deuda</div>' +
+    '<div class="set"><span>Pago extra (€)</span><input class="inp" id="dx" type="number" step="1" inputmode="decimal" value="' + (c.extra / 100) + '"></div><div class="set"><span>Mes del pago extra</span><select class="inp" id="dm" style="max-width:170px">' + opts(c.extraMes) + '</select></div><div class="set"><span>Mes en que liquidas</span><select class="inp" id="dl2" style="max-width:170px">' + opts(c.liquida) + '</select></div><div class="set"><span>Comisión de cancelación (%)</span><input class="inp" id="df" type="number" step="0.1" value="' + c.fee + '"></div><div class="set"><span>Ahorro reservado para el extra (€)</span><input class="inp" id="da" type="number" step="0.01" inputmode="decimal" value="' + (S.cfg.ahorroSaldo / 100) + '"></div>' +
+    '<div class="sub" style="margin:0">Los datos base (deuda inicial, interés y cuota) están en el archivo de configuración; si cambian, avísame.</div><button class="btn" id="sv">Guardar</button><button class="btn sec" id="cx">Cancelar</button>';
+  $('#cx').onclick = close;
+  $('#sv').onclick = async () => {
+    const d = Object.assign({}, c, { extra: Math.round((parseFloat($('#dx').value) || 0) * 100), extraMes: $('#dm').value, liquida: $('#dl2').value, fee: parseFloat($('#df').value) || 0 });
+    await store.saveConfig(Object.assign({}, S.cfg, { deuda: d, ahorroSaldo: Math.round((parseFloat($('#da').value) || 0) * 100) })); close(); toast('Guardado');
+  };
+  bg.onclick = e => { if (e.target === bg) close(); }; bg.classList.add('on');
+}
+
+function once(sub) {
+  return new Promise(res => { let u, done = false; u = sub(l => { if (done) return; done = true; res(l); if (u) u(); }); if (done && u) u(); });
+}
 async function allMovs() {
   // Exporta los meses desde 12 atrás hasta 3 adelante del actual
   const out = []; const base = curKey();
   for (let i = -12; i <= 3; i++) {
     const k = shiftKey(base, i);
-    out.push(...await new Promise(res => { const u = store.subscribeMonth(k, l => { u(); res(l); }); }));
+    out.push(...await once(cb => store.subscribeMonth(k, cb)));
   }
   return out;
 }
@@ -347,7 +422,7 @@ function start() {
     if (!u) { render(); return; }
     S.unsubC = store.subscribeConfig(cfg => {
       const first = !S.key; S.cfg = cfg;
-      if (first) { S.key = curKey(); subscribe(); S.unsubL = ['fijos', 'anuales'].map(k => store.subscribeList(k, l => { S[k] = l; if (S.user) render(); })); }
+      if (first) { S.key = curKey(); subscribe(); S.unsubL = ['fijos', 'anuales', 'metas'].map(k => store.subscribeList(k, l => { S[k] = l; if (S.user) render(); })); }
       render();
     });
   }).catch(e => { $('#app').innerHTML = '<div class="login"><div class="sub">Error al iniciar: ' + esc(e.message) + '</div></div>'; });

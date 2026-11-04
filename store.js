@@ -7,6 +7,8 @@ export const DEFAULT_CFG = {
   cycleStart: 25,
   reservaSaldo: 26907,
   reservaMes: 12500,
+  ahorroSaldo: 200779,
+  deuda: { d0: 631067, rate: 5.6, cuota: 28021, start: '2026-10', extra: 200000, extraMes: '2026-12', liquida: '2027-05', fee: 1 },
   budgets: { comidas: 10000, ocio: 6000, viajes: 8000, ropa: 2000, imprev: 4000 }
 };
 
@@ -38,6 +40,11 @@ function demoStore() {
         f('cuota', 'Préstamo del coche', 280.21, 30, 'fijo'), f('casa', 'Ayuda en casa', 180, 28, 'fijo'), f('parking', 'Parking', 80, 28, 'fijo'),
         f('gasc', 'Gasolina del coche', 80, 15, 'fijo'), f('barkibu', 'Barkibu (Maya)', 32.19, 26, 'fijo'), f('pelu', 'Peluquería', 15, 15, 'fijo'), f('gasm', 'Gasolina de la moto', 7, 15, 'fijo'),
         f('o2', 'Móvil O2 · 100 GB', 10, 5, 'sub'), f('icloud', 'iCloud 2 TB', 9.99, 13, 'sub'), f('claude', 'Claude Pro', 18, 19, 'sub')
+      ],
+      metas: [
+        { id: 'eclipse', n: 'Eclipse en Cala de Mijas', when: '1-4 ago 2027', goal: 35000, now: 0, color: '#0B7A6B' },
+        { id: 'islandia', n: 'Islandia', when: 'oct 2027', goal: 180000, now: 0, color: '#2A6FDB' },
+        { id: 'emerg', n: 'Fondo de emergencia', when: 'tras liquidar el coche', goal: 500000, now: 0, color: '#B4691F' }
       ],
       anuales: [
         y('spotify', 'Spotify', 40, 1), y('ivtm', 'IVTM coche y moto', 55, 3), y('dazn', 'DAZN', 60, 4), y('segcoche', 'Seguro del coche', 600, 5),
