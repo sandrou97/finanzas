@@ -104,7 +104,7 @@ function saldoOf(ap) {
 }
 const apSaldoOr = (id, fb) => { const x = apById(id); return x ? saldoOf(x) : fb; };
 const apMesOr = (id, fb) => { const x = apById(id); return x ? x.mes : fb; };
-const ahorroNow = () => apSaldoOr('ahorro', ahorroNow());
+const ahorroNow = () => apSaldoOr('ahorro', S.cfg.ahorroSaldo);
 const spendable = x => x.kind === 'libre' || x.kind === 'reserva';
 const spentIn = id => S.movs.filter(m => m.t === 'gasto' && apOf(m) === id).reduce((s, m) => s + m.a, 0);
 const paidIn = id => S.movs.filter(m => m.t === 'traspaso' && apOf(m) === id).reduce((s, m) => s + m.a, 0) + S.movs.filter(m => m.t === 'mover' && m.ap === id).reduce((s, m) => s + m.a, 0);
@@ -130,13 +130,18 @@ function viewInicio() {
   const r = calc(S.movs), [a, b] = cycleRange(S.key, S.cfg.cycleStart), libres = S.apartados.filter(x => x.kind === 'libre');
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const days = Math.round((b - today) / 864e5) + 1, live = today >= a && today <= b;
+  const ck = curKey(), isCur = S.key === ck, isPast = S.key < ck;
   let left, bud, cats, neg = '';
-  if (libres.length) {
+  if (libres.length && isCur) {
     const sal = libres.map(x => ({ x, s: saldoOf(x), sp: spentIn(x.id) }));
     left = sal.reduce((t, z) => t + z.s, 0); bud = libreBudget();
     cats = sal.map(z => { const p = z.x.mes ? Math.min(100, Math.round(z.sp / z.x.mes * 100)) : (z.sp ? 100 : 0);
       return '<div class="cat"><div class="t"><span>' + esc(z.x.n) + '</span><span>' + eur(z.sp) + ' de ' + eur(z.x.mes) + ' · <b class="' + (z.s < 0 ? 'neg' : '') + '" style="color:' + (z.s < 0 ? '' : 'var(--ink)') + '">' + eur(z.s) + '</b></span></div><div class="bar"><i style="width:' + p + '%;background:' + (z.sp > z.x.mes ? 'var(--neg)' : (z.x.color || 'var(--accent)')) + '"></i></div></div>'; }).join('');
     if (sal.some(z => z.s < 0)) neg = '<div class="hint warn">Hay apartados en negativo. <button class="chip" data-tab="apartados" style="margin-left:6px">Ver apartados</button></div>';
+  } else if (libres.length) {
+    bud = libreBudget(); left = bud - r.libre;
+    cats = libres.map(x => { const sp = spentIn(x.id), p = x.mes ? Math.min(100, Math.round(sp / x.mes * 100)) : (sp ? 100 : 0);
+      return '<div class="cat"><div class="t"><span>' + esc(x.n) + '</span><span>' + eur(sp) + ' de ' + eur(x.mes) + '</span></div><div class="bar"><i style="width:' + p + '%;background:' + (sp > x.mes ? 'var(--neg)' : (x.color || 'var(--accent)')) + '"></i></div></div>'; }).join('');
   } else {
     bud = libreBudget(); left = bud - r.libre;
     cats = Object.keys(CATS).filter(k => CATS[k].libre).map(k => { const sp = r.por[k] || 0, bg = S.cfg.budgets[k] || 0, p = bg ? Math.min(100, Math.round(sp / bg * 100)) : (sp ? 100 : 0);
@@ -144,15 +149,16 @@ function viewInicio() {
   }
   const perDay = live && days > 0 ? Math.max(0, left) / days : null, pct = bud ? Math.min(100, Math.round(r.libre / bud * 100)) : 0;
   return '<div class="head"><div><h1>Inicio</h1><div class="sub">' + fdate(a) + ' – ' + fdate(b) + '</div></div><div style="display:flex;gap:6px;align-items:center">' + mnav() + '<button class="gear" data-tab="ajustes" aria-label="Ajustes">' + svg('cog') + '</button></div></div>' +
-    '<div class="hero"><div class="l">' + (libres.length ? 'Te queda en tus apartados libres' : 'Te queda para gastos libres') + '</div><div class="big' + (left < 0 ? '" style="color:#FF8A80' : '') + '">' + eur(left) + '</div>' +
+    '<div class="hero"><div class="l">' + (libres.length && isCur ? 'Te queda en tus apartados libres' : isPast ? 'Te quedó de la previsión libre' : 'Te queda de la previsión libre') + '</div><div class="big' + (left < 0 ? '" style="color:#FF8A80' : '') + '">' + eur(left) + '</div>' +
     '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
-    '<div class="row2"><span>Gastado este ciclo <b>' + eur(r.libre) + '</b> de ' + eur(bud) + '</span>' + (perDay != null ? '<span><b>' + eur(Math.round(perDay)) + '</b> al día</span>' : '') + '</div></div>' + neg +
+    '<div class="row2"><span>Gastado este ciclo <b>' + eur(r.libre) + '</b> de ' + eur(bud) + '</span>' + (isCur && perDay != null ? '<span><b>' + eur(Math.round(perDay)) + '</b> al día</span>' : '') + '</div></div>' + neg +
     '<div class="grid2"><div class="stat"><div class="l">Entra</div><div class="v pos">' + eur(r.ing) + '</div></div>' +
     '<div class="stat"><div class="l">Sale de la cuenta</div><div class="v">' + eur(r.gasC + r.tras) + '</div></div>' +
     '<div class="stat"><div class="l">Queda en cuenta</div><div class="v ' + (r.queda < 0 ? 'neg' : '') + '">' + eur(r.queda) + '</div></div>' +
     '<div class="stat"><div class="l">Traspasado a apartados</div><div class="v">' + eur(r.tras) + '</div></div></div>' +
-    pendCard() +
-    '<h2>Gastos libres por apartado</h2><div class="card" style="gap:12px">' + cats + '<div class="sub" style="margin:0">Gastado este ciclo de la previsión · saldo total del apartado</div></div>';
+    (r.ing === 0 && S.movs.length ? '<div class="hint warn">Este ciclo no tiene ninguna nómina apuntada, por eso "Queda en cuenta" sale en negativo. Añádela en el Registro como ingreso.</div>' : '') +
+    (S.key >= ck ? pendCard() : '') +
+    '<h2>Gastos libres por apartado</h2><div class="card" style="gap:12px">' + cats + '<div class="sub" style="margin:0">' + (libres.length && isCur ? 'Gastado este ciclo de la previsión · saldo total del apartado' : 'Gastado en el ciclo de la previsión mensual') + '</div></div>';
 }
 function viewRegistro() {
   const f = S.filter;
