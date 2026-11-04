@@ -5,6 +5,8 @@ export const isDemo = !CONFIG || !CONFIG.apiKey || String(CONFIG.apiKey).indexOf
 
 export const DEFAULT_CFG = {
   cycleStart: 25,
+  reservaSaldo: 26907,
+  reservaMes: 12500,
   budgets: { comidas: 10000, ocio: 6000, viajes: 8000, ropa: 2000, imprev: 4000 }
 };
 
@@ -23,26 +25,41 @@ function demoStore() {
   const KEY = 'fin-demo-v1';
   const listeners = { cfg: [], movs: {} };
   function load() {
-    try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.movs) return s; } catch (e) {}
-    const s = { cfg: DEFAULT_CFG, movs: seed() };
+    try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.movs) { if (!s.lists) { s.lists = seedLists(); save(s); } return s; } } catch (e) {}
+    const s = { cfg: DEFAULT_CFG, movs: seed(), lists: seedLists() };
     save(s); return s;
   }
   function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+  function seedLists() {
+    const f = (id, n, a, day, kind) => ({ id, n, a: Math.round(a * 100), day, kind });
+    const y = (id, n, a, month, pagado) => Object.assign({ id, n, a: Math.round(a * 100), month }, pagado ? { pagado } : {});
+    return {
+      fijos: [
+        f('cuota', 'Préstamo del coche', 280.21, 30, 'fijo'), f('casa', 'Ayuda en casa', 180, 28, 'fijo'), f('parking', 'Parking', 80, 28, 'fijo'),
+        f('gasc', 'Gasolina del coche', 80, 15, 'fijo'), f('barkibu', 'Barkibu (Maya)', 32.19, 26, 'fijo'), f('pelu', 'Peluquería', 15, 15, 'fijo'), f('gasm', 'Gasolina de la moto', 7, 15, 'fijo'),
+        f('o2', 'Móvil O2 · 100 GB', 10, 5, 'sub'), f('icloud', 'iCloud 2 TB', 9.99, 13, 'sub'), f('claude', 'Claude Pro', 18, 19, 'sub')
+      ],
+      anuales: [
+        y('spotify', 'Spotify', 40, 1), y('ivtm', 'IVTM coche y moto', 55, 3), y('dazn', 'DAZN', 60, 4), y('segcoche', 'Seguro del coche', 600, 5),
+        y('mantcoche', 'Mantenimiento del coche', 250, 5), y('mantmoto', 'Mantenimiento moto y Prime', 180, 7), y('segmoto', 'Seguro de la moto', 105.93, 12, 2026)
+      ]
+    };
+  }
   function seed() {
     const m = '2026-11';
-    const r = (d, a, t, c, n) => ({ id: uid(), d, a: Math.round(a * 100), t, c, n, m });
+    const r = (d, a, t, c, n, f) => Object.assign({ id: f ? 'f-' + f + '-' + m : uid(), d, a: Math.round(a * 100), t, c, n, m }, f ? { f } : {});
     return [
       r('2026-10-27', 1770.90, 'ingreso', 'nomina', 'Nómina'),
       r('2026-10-28', 415, 'traspaso', 'ahorro', 'Ahorro para el coche'),
       r('2026-10-28', 100, 'traspaso', 'inversion', 'SP500 (MyInvestor)'),
       r('2026-10-28', 125, 'traspaso', 'reserva', 'Reserva de gastos anuales'),
       r('2026-10-28', 75, 'traspaso', 'regalos', 'Apartado de regalos'),
-      r('2026-10-28', 180, 'gasto', 'fijo', 'Ayuda en casa'),
-      r('2026-10-28', 80, 'gasto', 'fijo', 'Parking'),
-      r('2026-10-30', 105.93, 'gasto', 'anual', 'Seguro moto (empieza el 6 dic)'),
+      r('2026-10-28', 180, 'gasto', 'fijo', 'Ayuda en casa', 'casa'),
+      r('2026-10-28', 80, 'gasto', 'fijo', 'Parking', 'parking'),
+      Object.assign(r('2026-10-30', 105.93, 'gasto', 'anual', 'Seguro moto (empieza el 6 dic)'), { f: 'segmoto', id: 'a-segmoto-2026' }),
       r('2026-10-30', 33.29, 'gasto', 'regalos', 'Regalo June (Mayoral)'),
       r('2026-10-30', 2.55, 'gasto', 'ocio', 'Coca-Cola con Iña'),
-      r('2026-10-31', 280.21, 'gasto', 'fijo', 'Préstamo del coche'),
+      r('2026-10-31', 280.21, 'gasto', 'fijo', 'Préstamo del coche', 'cuota'),
       r('2026-10-31', 13.13, 'gasto', 'comidas', 'Comida con Vane, Fer e Iña'),
       r('2026-11-01', 15, 'gasto', 'ocio', 'Desayuno Cala Bandida'),
       r('2026-11-01', 6.72, 'gasto', 'comidas', 'Cena McDonald’s con Noe'),
@@ -72,6 +89,15 @@ function demoStore() {
       s.movs = s.movs.filter(x => x.id !== id); save(s); if (mv) emit(mv.m);
     },
     async saveConfig(cfg) { const s = load(); s.cfg = cfg; save(s); listeners.cfg.forEach(cb => cb(Object.assign({}, DEFAULT_CFG, cfg))); },
+    subscribeList(name, cb) {
+      (listeners[name] = listeners[name] || []).push(cb); cb(load().lists[name] || []);
+      return () => { listeners[name] = listeners[name].filter(f => f !== cb); };
+    },
+    async saveItem(name, it) {
+      const s = load(); const l = s.lists[name] = s.lists[name] || []; const i = l.findIndex(x => x.id === it.id);
+      if (i >= 0) l[i] = it; else l.push(it); save(s); (listeners[name] || []).forEach(cb => cb(l));
+    },
+    async deleteItem(name, id) { const s = load(); s.lists[name] = (s.lists[name] || []).filter(x => x.id !== id); save(s); (listeners[name] || []).forEach(cb => cb(s.lists[name])); },
     async resetDemo() { localStorage.removeItem(KEY); location.reload(); }
   };
 }
@@ -114,6 +140,11 @@ function firebaseStore() {
     async saveMov(mv) { const { id, ...rest } = mv; await F.setDoc(F.doc(db, 'users', user.uid, 'movs', id), rest); },
     async deleteMov(id) { await F.deleteDoc(F.doc(db, 'users', user.uid, 'movs', id)); },
     async saveConfig(cfg) { await F.setDoc(F.doc(db, 'users', user.uid, 'meta', 'config'), cfg); },
+    subscribeList(name, cb) {
+      return F.onSnapshot(F.collection(db, 'users', user.uid, name), snap => cb(snap.docs.map(d => Object.assign({ id: d.id }, d.data()))), err => console.error(err));
+    },
+    async saveItem(name, it) { const { id, ...rest } = it; await F.setDoc(F.doc(db, 'users', user.uid, name, id), rest); },
+    async deleteItem(name, id) { await F.deleteDoc(F.doc(db, 'users', user.uid, name, id)); },
     async resetDemo() {}
   };
 }

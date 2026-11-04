@@ -49,12 +49,13 @@ const ICON = {
   home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   cog: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  rep: '<path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/>', cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>', tick: '<path d="M5 12l5 5L20 7"/>',
   l: '<path d="M15 18l-6-6 6-6"/>', r: '<path d="M9 18l6-6-6-6"/>', plus: '<path d="M12 5v14M5 12h14"/>'
 };
 const svg = k => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + ICON[k] + '</svg>';
 
 /* --------------------------------- estado --------------------------------- */
-const S = { user: null, cfg: DEFAULT_CFG, tab: 'inicio', key: null, movs: [], filter: 'todos', unsubM: null, unsubC: null, ready: false };
+const S = { fijos: [], anuales: [], user: null, cfg: DEFAULT_CFG, tab: 'inicio', key: null, movs: [], filter: 'todos', unsubM: null, unsubC: null, ready: false };
 
 function curKey() { return monthKeyOf(iso(new Date()), S.cfg.cycleStart); }
 
@@ -79,7 +80,7 @@ const libreBudget = () => Object.keys(CATS).filter(k => CATS[k].libre).reduce((s
 function shell(inner) {
   return '<main id="main">' + inner + '</main>' +
     '<button class="fab" id="fab" aria-label="Añadir" style="' + (S.tab === 'ajustes' ? 'display:none' : '') + '"><svg viewBox="0 0 24 24">' + ICON.plus + '</svg></button>' +
-    '<nav class="tabs">' + [['inicio', 'Inicio', 'home'], ['registro', 'Registro', 'list'], ['ajustes', 'Ajustes', 'cog']].map(t =>
+    '<nav class="tabs">' + [['inicio', 'Inicio', 'home'], ['registro', 'Registro', 'list'], ['fijos', 'Fijos', 'rep'], ['anuales', 'Anuales', 'cal'], ['ajustes', 'Ajustes', 'cog']].map(t =>
       '<button class="tab' + (S.tab === t[0] ? ' on' : '') + '" data-tab="' + t[0] + '">' + svg(t[2]) + t[1] + '</button>').join('') + '</nav>';
 }
 function mnav() {
@@ -103,6 +104,7 @@ function viewInicio() {
     '<div class="stat"><div class="l">Sale</div><div class="v">' + eur(r.gas + r.tras) + '</div></div>' +
     '<div class="stat"><div class="l">Queda en cuenta</div><div class="v ' + (r.queda < 0 ? 'neg' : '') + '">' + eur(r.queda) + '</div></div>' +
     '<div class="stat"><div class="l">Traspasos (ahorro)</div><div class="v">' + eur(r.tras) + '</div></div></div>' +
+    pendCard() +
     '<h2>Gastos libres por categoría</h2><div class="card" style="gap:12px">' + cats + '</div>';
 }
 function viewRegistro() {
@@ -128,6 +130,7 @@ function viewAjustes() {
     '<div class="card"><div style="font-weight:600">Tema</div><div class="seg" id="theme">' + [['auto', 'Auto'], ['light', 'Claro'], ['dark', 'Oscuro']].map(t => '<button data-th="' + t[0] + '" class="' + (th === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</div></div>' +
     '<div class="card"><div style="font-weight:600">Ciclo</div><div class="set"><span>Día en que empieza tu ciclo (cobro)</span><input class="inp" id="cs" type="number" min="1" max="28" value="' + S.cfg.cycleStart + '"></div>' +
     '<div class="sub" style="margin:0">Un movimiento desde ese día cuenta para el mes siguiente.</div></div>' +
+    '<div class="card"><div style="font-weight:600">Reserva de gastos anuales</div><div class="set"><span>Saldo actual (€)</span><input class="inp" id="rs" type="number" step="0.01" inputmode="decimal" value="' + (S.cfg.reservaSaldo / 100) + '"></div><div class="set"><span>Aportación mensual (€)</span><input class="inp" id="rm" type="number" step="0.01" inputmode="decimal" value="' + (S.cfg.reservaMes / 100) + '"></div></div>' +
     '<div class="card"><div style="font-weight:600">Presupuesto libre por ciclo (€)</div>' + lib.map(k => '<div class="set"><span>' + CATS[k].n + '</span><input class="inp" data-b="' + k + '" type="number" step="1" inputmode="decimal" value="' + ((b[k] || 0) / 100) + '"></div>').join('') +
     '<div class="set"><b>Total</b><b id="btot">' + eur(libreBudget()) + '</b></div></div>' +
     '<button class="btn" id="saveCfg">Guardar ajustes</button>' +
@@ -142,13 +145,16 @@ function render() {
   const app = $('#app');
   if (!S.user) { app.innerHTML = S.ready ? viewLogin() : '<div class="login"><div class="sub">Cargando…</div></div>'; const b = $('#login'); if (b) b.onclick = async () => { try { await store.signIn(); } catch (e) { $('#lerr').textContent = 'No se pudo iniciar sesión: ' + (e.code || e.message); } }; return; }
   const keep = $('#main') ? $('#main').scrollTop : 0;
-  app.innerHTML = shell(S.tab === 'inicio' ? viewInicio() : S.tab === 'registro' ? viewRegistro() : viewAjustes());
+  app.innerHTML = shell(({ inicio: viewInicio, registro: viewRegistro, fijos: viewFijos, anuales: viewAnuales, ajustes: viewAjustes })[S.tab]());
   $('#main').scrollTop = keep;
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; render(); });
   app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.key = shiftKey(S.key, +b.dataset.m); subscribe(); render(); });
   app.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { S.filter = b.dataset.f; render(); });
   app.querySelectorAll('[data-id]').forEach(b => b.onclick = () => openSheet(S.movs.find(m => m.id === b.dataset.id)));
-  $('#fab').onclick = () => openSheet(null);
+  $('#fab').onclick = () => S.tab === 'fijos' ? openItem('fijos', null) : S.tab === 'anuales' ? openItem('anuales', null) : openSheet(null);
+  app.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => toggleFijo(b.dataset.chk));
+  app.querySelectorAll('[data-achk]').forEach(b => b.onclick = () => toggleAnual(b.dataset.achk));
+  app.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { const [k, id] = b.dataset.edit.split(':'); openItem(k, S[k].find(x => x.id === id)); });
   if (S.tab === 'ajustes') bindAjustes();
 }
 function bindAjustes() {
@@ -165,7 +171,7 @@ function bindAjustes() {
   $('#saveCfg').onclick = async () => {
     const budgets = {}; document.querySelectorAll('[data-b]').forEach(i => budgets[i.dataset.b] = Math.round((parseFloat(i.value) || 0) * 100));
     const cs = Math.min(28, Math.max(1, parseInt($('#cs').value) || 25));
-    await store.saveConfig({ cycleStart: cs, budgets }); toast('Ajustes guardados');
+    await store.saveConfig({ cycleStart: cs, budgets, reservaSaldo: Math.round((parseFloat($('#rs').value) || 0) * 100), reservaMes: Math.round((parseFloat($('#rm').value) || 0) * 100) }); toast('Ajustes guardados');
   };
   const o = $('#out'); if (o) o.onclick = () => store.signOut();
   const r = $('#reset'); if (r) r.onclick = () => { if (confirm('¿Restablecer los datos de demo?')) store.resetDemo(); };
@@ -211,6 +217,92 @@ function openSheet(mov) {
   draw(); bg.classList.add('on');
 }
 
+
+/* ------------------------- fijos, suscripciones, anuales ------------------------- */
+const sumA = l => l.reduce((s, x) => s + x.a, 0);
+const paidMov = it => S.movs.find(m => m.f === it.id && m.t === 'gasto');
+function fijosStats() {
+  const all = S.fijos, paid = all.filter(paidMov);
+  return { total: sumA(all), pagado: sumA(paid), pend: sumA(all) - sumA(paid), nPend: all.length - paid.length };
+}
+function pendCard() {
+  if (!S.fijos.length) return '';
+  const f = fijosStats(), r = calc(S.movs), real = r.queda - f.pend;
+  return '<div class="card"><div class="row2"><span>Fijos pendientes de pagar</span><b>' + eur(f.pend) + '</b></div><div class="row2"><span>Te quedaría tras pagarlos</span><b class="' + (real < 0 ? 'neg' : 'pos') + '">' + eur(real) + '</b></div></div>';
+}
+function chk(on, attr, id) { return '<button class="chk' + (on ? ' on' : '') + '" ' + attr + '="' + id + '" aria-label="' + (on ? 'Pagado' : 'Marcar como pagado') + '">' + (on ? '<svg viewBox="0 0 24 24">' + ICON.tick + '</svg>' : '') + '</button>'; }
+function viewFijos() {
+  const f = fijosStats(), pct = f.total ? Math.round(f.pagado / f.total * 100) : 0;
+  const item = it => {
+    const m = paidMov(it);
+    return '<div class="row">' + chk(!!m, 'data-chk', it.id) + '<button class="m" data-edit="fijos:' + it.id + '"><div class="n" style="font-size:14px;font-weight:500">' + esc(it.n) + '</div><div class="c" style="font-size:12px;color:var(--muted)">' + (m ? 'Pagado · ' + fdate(new Date(m.d + 'T00:00:00')) : 'Pendiente · día ' + it.day) + '</div></button><div class="a" style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">' + eur(it.a) + '</div></div>';
+  };
+  const fijos = S.fijos.filter(x => x.kind !== 'sub').sort((a, b) => a.day - b.day), subs = S.fijos.filter(x => x.kind === 'sub').sort((a, b) => a.day - b.day);
+  const sm = sumA(subs);
+  return '<div class="head"><div><h1>Fijos</h1><div class="sub">Lo que sale cada ciclo, sin falta</div></div>' + mnav() + '</div>' +
+    '<div class="card"><div class="row2"><span style="color:var(--muted)">Fijos de este ciclo</span><span style="color:var(--muted)">' + eur(f.pagado) + ' de ' + eur(f.total) + '</span></div><div style="font-size:32px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums">' + eur(f.total) + '</div><div class="bar"><i style="width:' + pct + '%"></i></div><div class="sub">' + (f.nPend ? 'Te faltan <b style="color:var(--ink)">' + eur(f.pend) + '</b> por pagar este ciclo' : 'Todo pagado este ciclo') + '</div></div>' +
+    '<h2>Cada mes</h2><div class="list">' + (fijos.map(item).join('') || '<div class="empty">Pulsa + para añadir un gasto fijo.</div>') + '</div>' +
+    '<div class="head" style="align-items:baseline"><h2 style="padding:0">Suscripciones</h2><span class="sub">' + eur(sm) + ' al mes · ' + eur(sm * 12) + ' al año</span></div><div class="list">' + (subs.map(item).join('') || '<div class="empty">Sin suscripciones.</div>') + '</div>';
+}
+async function toggleFijo(id) {
+  const it = S.fijos.find(x => x.id === id), m = paidMov(it);
+  if (m) { await store.deleteMov(m.id); return; }
+  const [a, b] = cycleRange(S.key, S.cfg.cycleStart), t = new Date(); t.setHours(0, 0, 0, 0);
+  const d = t >= a && t <= b ? t : b;
+  await store.saveMov({ id: 'f-' + id + '-' + S.key, d: iso(d), a: it.a, t: 'gasto', c: 'fijo', n: it.n, m: S.key, f: id });
+}
+const occYear = it => { const n = new Date(); return it.month >= n.getMonth() + 1 ? n.getFullYear() : n.getFullYear() + 1; };
+const occIdx = it => occYear(it) * 12 + it.month;
+function viewAnuales() {
+  const n = new Date(), nowIdx = n.getFullYear() * 12 + n.getMonth() + 1;
+  const list = S.anuales.slice().sort((a, b) => occIdx(a) - occIdx(b)), tot = sumA(list), need = Math.round(tot / 12);
+  const unpaid = list.filter(x => x.pagado !== occYear(x));
+  let cum = 0, worst = null;
+  unpaid.forEach(it => { cum += it.a; const bal = S.cfg.reservaSaldo + S.cfg.reservaMes * Math.max(0, occIdx(it) - nowIdx) - cum; if (!worst || bal < worst.bal) worst = { bal, it }; });
+  let hint = '';
+  if (worst) hint = worst.bal < 0
+    ? '<div class="hint warn">Con tu aportación actual te faltarán <b>' + eur(-worst.bal) + '</b> para <b>' + esc(worst.it.n) + '</b> (' + MES[worst.it.month - 1] + '). Sube la aportación o adelanta un pago extra a la reserva.</div>'
+    : '<div class="hint">Tu reserva cubre todos los pagos. El punto más justo es <b>' + esc(worst.it.n) + '</b> (' + MES[worst.it.month - 1] + '): te sobrarían <b>' + eur(worst.bal) + '</b>.</div>';
+  return '<div class="head"><div><h1>Anuales</h1><div class="sub">Pagos de una vez al año, ya reservados</div></div></div>' +
+    '<div class="hero"><div class="l">En tu reserva ahora</div><div class="big">' + eur(S.cfg.reservaSaldo) + '</div><div class="row2"><div><div class="l">Aportas</div><b>' + eur(S.cfg.reservaMes) + ' / mes</b></div><div><div class="l">Necesitas</div><b>' + eur(need) + ' / mes</b></div><div><div class="l">Total al año</div><b>' + eur(tot) + '</b></div></div></div>' + hint +
+    '<h2>Próximos pagos</h2><div class="list">' + (list.map(it => {
+      const paid = it.pagado === occYear(it);
+      return '<div class="row">' + chk(paid, 'data-achk', it.id) + '<div class="mon' + (it.a >= 20000 ? ' big' : '') + '">' + MES[it.month - 1].slice(0, 3) + '</div><button class="m" data-edit="anuales:' + it.id + '"><div class="n" style="font-size:14px;font-weight:500">' + esc(it.n) + '</div><div class="c" style="font-size:12px;color:var(--muted)">' + (paid ? 'Pagado ' + occYear(it) : MES[it.month - 1] + ' ' + occYear(it)) + '</div></button><div class="a" style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">' + eur(it.a) + '</div></div>';
+    }).join('') || '<div class="empty">Pulsa + para añadir un pago anual.</div>') + '</div>' +
+    '<div class="sub" style="padding:0 4px">Al marcar un pago como hecho se apunta como gasto en el Registro. Ajusta el saldo y la aportación de la reserva en Ajustes.</div>';
+}
+async function toggleAnual(id) {
+  const it = S.anuales.find(x => x.id === id), y = occYear(it), mid = 'a-' + id + '-' + y;
+  if (it.pagado === y) { const o = Object.assign({}, it); delete o.pagado; await store.deleteMov(mid); await store.saveItem('anuales', o); return; }
+  const t = iso(new Date());
+  await store.saveMov({ id: mid, d: t, a: it.a, t: 'gasto', c: 'anual', n: it.n, m: monthKeyOf(t, S.cfg.cycleStart), f: id });
+  await store.saveItem('anuales', Object.assign({}, it, { pagado: y }));
+}
+function openItem(kind, it) {
+  const ed = !!it, fj = kind === 'fijos', bg = $('#sheetBg'), sh = $('#sheet');
+  const st = ed ? Object.assign({}, it) : { id: newId(), n: '', a: 0, kind: 'fijo', day: 1, month: new Date().getMonth() + 1 };
+  const close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
+  const draw = () => {
+    sh.innerHTML = '<div style="font-weight:700;font-size:18px">' + (ed ? 'Editar' : 'Nuevo') + (fj ? ' gasto fijo' : ' pago anual') + '</div>' +
+      (fj ? '<div class="seg" style="grid-template-columns:1fr 1fr"><button data-k="fijo" class="' + (st.kind !== 'sub' ? 'on' : '') + '">Fijo</button><button data-k="sub" class="' + (st.kind === 'sub' ? 'on' : '') + '">Suscripción</button></div>' : '') +
+      '<input class="inp" id="in" placeholder="Nombre" value="' + esc(st.n) + '"><div class="f"><input class="inp" id="ia" type="number" step="0.01" inputmode="decimal" placeholder="Importe €" value="' + (st.a ? st.a / 100 : '') + '">' +
+      (fj ? '<input class="inp" id="id" type="number" min="1" max="31" placeholder="Día" value="' + st.day + '">' : '<select class="inp" id="im">' + MES.map((m, i) => '<option value="' + (i + 1) + '"' + (st.month === i + 1 ? ' selected' : '') + '>' + m + '</option>').join('') + '</select>') + '</div>' +
+      '<button class="btn" id="sv">Guardar</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
+    sh.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { st.n = $('#in').value; st.a = Math.round((parseFloat($('#ia').value) || 0) * 100); st.day = parseInt($('#id').value) || 1; st.kind = b.dataset.k; draw(); });
+    $('#cx').onclick = close;
+    $('#sv').onclick = async () => {
+      const a = Math.round((parseFloat($('#ia').value) || 0) * 100), n = $('#in').value.trim();
+      if (!n || !a) { toast('Pon nombre e importe'); return; }
+      const out = Object.assign({}, st, { n, a });
+      if (fj) out.day = Math.min(31, Math.max(1, parseInt($('#id').value) || 1)); else out.month = parseInt($('#im').value);
+      await store.saveItem(kind, out); close(); toast('Guardado');
+    };
+    const dl = $('#dl'); if (dl) dl.onclick = async () => { if (confirm('¿Eliminar?')) { await store.deleteItem(kind, st.id); close(); } };
+  };
+  bg.onclick = e => { if (e.target === bg) close(); };
+  draw(); bg.classList.add('on');
+}
+
 /* ------------------------------ datos y arranque ------------------------------ */
 function subscribe() {
   if (S.unsubM) S.unsubM();
@@ -219,12 +311,12 @@ function subscribe() {
 function start() {
   store.init(u => {
     S.user = u; S.ready = true;
-    if (S.unsubM) S.unsubM(); if (S.unsubC) S.unsubC();
-    S.unsubM = S.unsubC = null;
+    if (S.unsubM) S.unsubM(); if (S.unsubC) S.unsubC(); if (S.unsubL) S.unsubL.forEach(f => f());
+    S.unsubM = S.unsubC = S.unsubL = null;
     if (!u) { render(); return; }
     S.unsubC = store.subscribeConfig(cfg => {
       const first = !S.key; S.cfg = cfg;
-      if (first) { S.key = curKey(); subscribe(); }
+      if (first) { S.key = curKey(); subscribe(); S.unsubL = ['fijos', 'anuales'].map(k => store.subscribeList(k, l => { S[k] = l; if (S.user) render(); })); }
       render();
     });
   }).catch(e => { $('#app').innerHTML = '<div class="login"><div class="sub">Error al iniciar: ' + esc(e.message) + '</div></div>'; });
