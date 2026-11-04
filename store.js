@@ -8,6 +8,8 @@ export const DEFAULT_CFG = {
   reservaSaldo: 26907,
   reservaMes: 12500,
   ahorroSaldo: 200779,
+  regalosSaldo: 11671,
+  regalosMes: 7500,
   deuda: { d0: 631067, rate: 5.6, cuota: 28021, start: '2026-10', extra: 200000, extraMes: '2026-12', liquida: '2027-05', fee: 1 },
   budgets: { comidas: 10000, ocio: 6000, viajes: 8000, ropa: 2000, imprev: 4000 }
 };
@@ -21,6 +23,14 @@ const URLS = {
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 export function newId() { return uid(); }
+
+const REGALOS_SEED = [
+  ['ina', 'Cumpleaños de Iña', 6, 9, 35], ['mama', 'Cumpleaños de mamá', 6, 27, 100], ['papa', 'Cumpleaños de papá', 7, 1, 100],
+  ['noe', 'Cumpleaños de Noe', 8, 11, 125], ['david', 'Cumpleaños de David', 11, 10, 50], ['sanval', 'San Valentín (Noe)', 2, 14, 75],
+  ['dpadre', 'Día del padre', 3, 19, 50], ['dmadre', 'Día de la madre', 5, 3, 50], ['nav-mama', 'Navidad: mamá', 12, 25, 75],
+  ['nav-papa', 'Navidad: papá', 12, 25, 75], ['nav-noe', 'Navidad: Noe', 12, 25, 100], ['nav-david', 'Navidad: David', 12, 25, 25],
+  ['fran', 'Cumpleaños de Fran', 12, 15, 15], ['yani', 'Cumpleaños de Yani', 1, 20, 15], ['adri', 'Cumpleaños de Adri', 2, 20, 15]
+].map(r => ({ id: r[0], n: r[1], mes: r[2], dia: r[3], bud: r[4] * 100 }));
 
 /* ---------------------------------- DEMO ---------------------------------- */
 function demoStore() {
@@ -41,6 +51,14 @@ function demoStore() {
         f('gasc', 'Gasolina del coche', 80, 15, 'fijo'), f('barkibu', 'Barkibu (Maya)', 32.19, 26, 'fijo'), f('pelu', 'Peluquería', 15, 15, 'fijo'), f('gasm', 'Gasolina de la moto', 7, 15, 'fijo'),
         f('o2', 'Móvil O2 · 100 GB', 10, 5, 'sub'), f('icloud', 'iCloud 2 TB', 9.99, 13, 'sub'), f('claude', 'Claude Pro', 18, 19, 'sub')
       ],
+      viajes: [
+        { id: 'madcool', n: 'Mad Cool 2026', a: '2026-07-08', b: '2026-07-12', bud: 0 },
+        { id: 'ams', n: 'Ámsterdam', a: '2026-09-06', b: '2026-09-07', bud: 0 },
+        { id: 'liv-man', n: 'Liverpool y Manchester', a: '2026-10-10', b: '2026-10-12', bud: 0 },
+        { id: 'eclipse27', n: 'Eclipse en Cala de Mijas', a: '2027-08-01', b: '2027-08-04', bud: 35000 },
+        { id: 'islandia27', n: 'Islandia 2027', a: '', b: '', bud: 180000 }
+      ],
+      regalos: REGALOS_SEED,
       metas: [
         { id: 'eclipse', n: 'Eclipse en Cala de Mijas', when: '1-4 ago 2027', goal: 35000, now: 0, color: '#0B7A6B' },
         { id: 'islandia', n: 'Islandia', when: 'oct 2027', goal: 180000, now: 0, color: '#2A6FDB' },
@@ -76,6 +94,7 @@ function demoStore() {
   function emit(key) {
     const s = load();
     (listeners.movs[key] || []).forEach(cb => cb(s.movs.filter(x => x.m === key)));
+    (listeners.all || []).forEach(cb => cb(s.movs));
   }
   return {
     async init(onUser) { onUser({ uid: 'demo', name: 'Modo demo', demo: true }); },
@@ -85,6 +104,7 @@ function demoStore() {
       (listeners.movs[key] = listeners.movs[key] || []).push(cb); emit(key);
       return () => { listeners.movs[key] = listeners.movs[key].filter(f => f !== cb); };
     },
+    subscribeAll(cb) { (listeners.all = listeners.all || []).push(cb); cb(load().movs); return () => { listeners.all = listeners.all.filter(f => f !== cb); }; },
     async saveMov(mv) {
       const s = load(); const i = s.movs.findIndex(x => x.id === mv.id);
       const old = i >= 0 ? s.movs[i].m : null;
@@ -144,6 +164,7 @@ function firebaseStore() {
       const q = F.query(col(), F.where('m', '==', key));
       return F.onSnapshot(q, snap => cb(snap.docs.map(d => Object.assign({ id: d.id }, d.data()))), err => console.error(err));
     },
+    subscribeAll(cb) { return F.onSnapshot(col(), snap => cb(snap.docs.map(d => Object.assign({ id: d.id }, d.data()))), err => console.error(err)); },
     async saveMov(mv) { const { id, ...rest } = mv; await F.setDoc(F.doc(db, 'users', user.uid, 'movs', id), rest); },
     async deleteMov(id) { await F.deleteDoc(F.doc(db, 'users', user.uid, 'movs', id)); },
     async saveConfig(cfg) { await F.setDoc(F.doc(db, 'users', user.uid, 'meta', 'config'), cfg); },
