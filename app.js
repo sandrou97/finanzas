@@ -171,7 +171,7 @@ function viewInicio() {
     '<div class="stat"><div class="l">Sale de la cuenta</div><div class="v">' + eur(r.gasC + r.tras) + '</div></div>' +
     '<div class="stat"><div class="l">Queda en cuenta</div><div class="v ' + (r.queda < 0 ? 'neg' : '') + '">' + eur(r.queda) + '</div></div>' +
     '<div class="stat"><div class="l">Traspasado a apartados</div><div class="v">' + eur(r.tras) + '</div></div></div>' +
-    (r.ing === 0 && S.movs.length ? '<div class="hint warn">Este ciclo no tiene ninguna nómina apuntada, por eso "Queda en cuenta" sale en negativo. ' + (isPast ? 'Añádela en el Registro como ingreso.' : '<button class="chip" id="nomina" style="margin-left:6px">Apuntar nómina</button>') + '</div>' : '') +
+    (r.ing === 0 && S.movs.length ? '<div class="hint warn">Este ciclo no tiene ninguna nómina apuntada, por eso "Queda en cuenta" sale en negativo. ' + '<button class="chip" id="nomina" style="margin-left:6px">Apuntar nómina</button>' + '</div>' : '') +
     (isCur ? avisosCard() + cuentaCard() : '') +
     (S.key >= ck ? pendCard() : '') +
     '<h2>Gastos libres por apartado</h2><div class="card" style="gap:12px">' + cats + '<div class="sub" style="margin:0">' + (libres.length && isCur ? 'Gastado este ciclo de la previsión · saldo total del apartado' : 'Gastado en el ciclo de la previsión mensual') + '</div></div>';
@@ -392,7 +392,7 @@ function openConciliar() {
 function openNomina() {
   const bg = $('#sheetBg'), sh = $('#sheet'), last = (S.cfg.nomina && S.cfg.nomina.a) || 0;
   sh.innerHTML = '<div style="font-weight:700;font-size:18px">Apuntar nómina</div><div class="sub">Se rellena con tu última nómina; cámbiala si este mes es distinta.</div>' +
-    '<div class="f"><input class="inp" id="na" inputmode="decimal" placeholder="Importe (€)" value="' + (last ? String(last / 100).replace('.', ',') : '') + '"><input class="inp" id="nd" type="date" value="' + iso(new Date()) + '" style="max-width:150px"></div>' +
+    '<div class="f"><input class="inp" id="na" inputmode="decimal" placeholder="Importe (€)" value="' + (last ? String(last / 100).replace('.', ',') : '') + '"><input class="inp" id="nd" type="date" value="' + (S.key === curKey() ? iso(new Date()) : iso(cycleRange(S.key, S.cfg.cycleStart)[0])) + '" style="max-width:150px"></div>' +
     '<button class="btn" id="ns">Apuntar</button><button class="btn sec" id="cx">Cancelar</button>';
   const close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
   $('#cx').onclick = close; bg.onclick = e => { if (e.target === bg) close(); };
