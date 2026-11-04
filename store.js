@@ -59,6 +59,7 @@ function demoStore() {
         { id: 'islandia27', n: 'Islandia 2027', a: '', b: '', bud: 180000 }
       ],
       regalos: REGALOS_SEED,
+      apartados: [{"id": "comidas", "n": "Comidas", "kind": "libre", "mes": 10000, "saldo0": 10001, "fecha0": "2026-10-30", "color": "#E08A2B"}, {"id": "ocio", "n": "Ocio", "kind": "libre", "mes": 6000, "saldo0": 5746, "fecha0": "2026-10-30", "color": "#8B5CF6"}, {"id": "viajes", "n": "Viajes", "kind": "libre", "mes": 8000, "saldo0": 8001, "fecha0": "2026-10-30", "color": "#2A6FDB"}, {"id": "ropa", "n": "Ropa", "kind": "libre", "mes": 2000, "saldo0": 2001, "fecha0": "2026-10-30", "color": "#D6547F"}, {"id": "imprev", "n": "Imprevistos", "kind": "libre", "mes": 4000, "saldo0": 4001, "fecha0": "2026-10-30", "color": "#8A94A6"}, {"id": "regalos", "n": "Regalos", "kind": "reserva", "mes": 7500, "saldo0": 11671, "fecha0": "2026-10-30", "color": "#E0559B"}, {"id": "anual", "n": "Gastos anuales", "kind": "reserva", "mes": 12500, "saldo0": 26907, "fecha0": "2026-10-30", "color": "#B4691F"}, {"id": "ahorro", "n": "Ahorro coche", "kind": "ahorro", "mes": 41500, "saldo0": 200779, "fecha0": "2026-10-30", "color": "#0B7A6B"}, {"id": "sp500", "n": "Inversión SP500", "kind": "ahorro", "mes": 10000, "saldo0": 112739, "fecha0": "2026-10-30", "color": "#0E8F7E"}],
       metas: [
         { id: 'eclipse', n: 'Eclipse en Cala de Mijas', when: '1-4 ago 2027', goal: 35000, now: 0, color: '#0B7A6B' },
         { id: 'islandia', n: 'Islandia', when: 'oct 2027', goal: 180000, now: 0, color: '#2A6FDB' },
@@ -79,6 +80,11 @@ function demoStore() {
       r('2026-10-28', 100, 'traspaso', 'inversion', 'SP500 (MyInvestor)'),
       r('2026-10-28', 125, 'traspaso', 'reserva', 'Reserva de gastos anuales'),
       r('2026-10-28', 75, 'traspaso', 'regalos', 'Apartado de regalos'),
+      Object.assign(r('2026-10-28', 100.0, 'traspaso', 'apartado', 'Traspaso a Comidas'), { ap: 'comidas', id: 't-comidas-2026-11' }),
+      Object.assign(r('2026-10-28', 60.0, 'traspaso', 'apartado', 'Traspaso a Ocio'), { ap: 'ocio', id: 't-ocio-2026-11' }),
+      Object.assign(r('2026-10-28', 80.0, 'traspaso', 'apartado', 'Traspaso a Viajes'), { ap: 'viajes', id: 't-viajes-2026-11' }),
+      Object.assign(r('2026-10-28', 20.0, 'traspaso', 'apartado', 'Traspaso a Ropa'), { ap: 'ropa', id: 't-ropa-2026-11' }),
+      Object.assign(r('2026-10-28', 40.0, 'traspaso', 'apartado', 'Traspaso a Imprevistos'), { ap: 'imprev', id: 't-imprev-2026-11' }),
       r('2026-10-28', 180, 'gasto', 'fijo', 'Ayuda en casa', 'casa'),
       r('2026-10-28', 80, 'gasto', 'fijo', 'Parking', 'parking'),
       Object.assign(r('2026-10-30', 105.93, 'gasto', 'anual', 'Seguro moto (empieza el 6 dic)'), { f: 'segmoto', id: 'a-segmoto-2026' }),
