@@ -504,6 +504,14 @@ function loanSchedule(c, withPlan) {
   }
   return { rows, interest, fees };
 }
+function metaPlan(g) {
+  if (!g.hasta) return null;
+  const n = new Date(), idx = k => { const [y, m] = k.split('-').map(Number); return y * 12 + m; }, nowI = n.getFullYear() * 12 + n.getMonth() + 1;
+  const falta = Math.max(0, g.goal - g.now), late = idx(g.hasta) - nowI, early = g.desde ? idx(g.desde) - nowI : late;
+  const per = k => Math.round(falta / Math.max(1, k));
+  const f = k => MES[Number(k.split('-')[1]) - 1].slice(0, 3) + ' ' + k.split('-')[0];
+  return { falta, late, done: falta === 0, over: late < 0, tope: per(late), ideal: g.desde && early > 0 ? per(early) : null, txt: g.desde && g.desde !== g.hasta ? 'entre ' + f(g.desde) + ' y ' + f(g.hasta) : 'para ' + f(g.hasta) };
+}
 function viewMetas() {
   const c = S.cfg.deuda, plan = loanSchedule(c, true), base = loanSchedule(c, false), now = new Date();
   const paid = plan.rows.filter(r => r.date <= now && r.kind === 'cuota'), cur = paid.length ? paid[paid.length - 1].bal : c.d0;
@@ -517,25 +525,26 @@ function viewMetas() {
   const saved = base.interest - plan.interest - plan.fees;
   const ex = c.extra ? Math.round(c.extra * (1 + c.fee / 100)) : 0, pct = ex ? Math.min(100, Math.round(ahorroNow() / ex * 100)) : 0;
   const last = plan.rows[plan.rows.length - 1];
+  const metas = S.metas.slice().sort((a, b) => (a.hasta || '9999').localeCompare(b.hasta || '9999'));
   return '<div class="head"><div><h1>Metas</h1><div class="sub">Lo que debes y a dónde vas</div></div></div>' +
     '<div class="hero"><div class="row2"><span class="l">Debes del coche</span><span class="l">' + c.rate.toLocaleString('de-DE') + ' % · cuota ' + eur(c.cuota) + '</span></div><div class="big">' + eur(cur) + '</div><div style="display:flex;flex-direction:column;gap:8px">' +
     shown.map(r => '<div class="step"><i></i><span>' + lbl(r) + '</span><b>' + eur(r.bal) + '</b></div>').join('') + '</div></div>' +
     (saved > 0 ? '<div class="hint">Con este plan terminas de pagar en <b>' + MES[Number(last.key.split('-')[1]) - 1] + ' ' + last.key.split('-')[0] + '</b> y te ahorras unos <b>' + eur(saved) + '</b> entre intereses y comisiones, frente a seguir pagando la cuota hasta el final.</div>' : '') +
     (ex ? '<div class="card"><div class="row2"><b>Ahorro para el pago extra</b><span style="color:var(--muted)">' + MES[Number(c.extraMes.split('-')[1]) - 1].slice(0, 3) + '</span></div><div class="row2" style="align-items:baseline"><span style="font-size:24px;font-weight:700;font-variant-numeric:tabular-nums">' + eur(ahorroNow()) + '</span><span style="color:var(--muted)">de ' + eur(ex) + ' (extra + ' + c.fee + ' % de comisión)</span></div><div class="bar"><i style="width:' + pct + '%"></i></div></div>' : '') +
     '<button class="btn sec" id="deuda">Editar plan de la deuda y ahorro</button>' +
-    '<h2>Metas</h2>' + (S.metas.map(g => {
-      const p = g.goal ? Math.min(100, Math.round(g.now / g.goal * 100)) : 0;
-      return '<button class="goal" data-meta="' + g.id + '"><div class="row2"><b>' + esc(g.n) + '</b><span style="color:var(--muted);font-size:12px">' + esc(g.when || '') + '</span></div><div class="row2" style="align-items:baseline"><span style="font-size:18px;font-weight:700;font-variant-numeric:tabular-nums">' + eur(g.now) + '</span><span style="color:var(--muted)">de ' + eur(g.goal) + '</span></div><div class="bar" style="height:7px"><i style="width:' + p + '%;background:' + (g.color || 'var(--accent)') + '"></i></div></button>';
+    '<h2>Metas</h2>' + (metas.map(g => {
+      const p = g.goal ? Math.min(100, Math.round(g.now / g.goal * 100)) : 0, mp = metaPlan(g);
+      return '<button class="goal" data-meta="' + g.id + '"><div class="row2"><b>' + esc(g.n) + '</b><span style="color:var(--muted);font-size:12px">' + esc(mp ? mp.txt : g.when || '') + '</span></div><div class="row2" style="align-items:baseline"><span style="font-size:18px;font-weight:700;font-variant-numeric:tabular-nums">' + eur(g.now) + '</span><span style="color:var(--muted)">de ' + eur(g.goal) + '</span></div><div class="bar" style="height:7px"><i style="width:' + p + '%;background:' + (g.color || 'var(--accent)') + '"></i></div>' + (mp ? '<div class="sub" style="margin:0;color:' + (mp.over && !mp.done ? 'var(--neg)' : 'var(--ink)') + '">' + (mp.done ? 'Meta cumplida' : mp.over ? 'La fecha ya pasó: faltan ' + eur(mp.falta) : 'Ahorra <b>' + eur(mp.tope) + '/mes</b>' + (mp.ideal && mp.ideal !== mp.tope ? ' (o ' + eur(mp.ideal) + '/mes si quieres llegar antes)' : '') + ' · faltan ' + eur(mp.falta)) + '</div>' : '') + '</button>';
     }).join('') || '<div class="empty">Pulsa + para añadir una meta.</div>');
 }
 function openMeta(g) {
   const ed = !!g, st = ed ? Object.assign({}, g) : { id: newId(), n: '', when: '', goal: 0, now: 0, color: '#0B7A6B' };
   const bg = $('#sheetBg'), sh = $('#sheet'), close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
-  sh.innerHTML = '<div style="font-weight:700;font-size:18px">' + (ed ? 'Editar meta' : 'Nueva meta') + '</div><input class="inp" id="mn" placeholder="Nombre" value="' + esc(st.n) + '"><input class="inp" id="mw" placeholder="Cuándo (texto libre)" value="' + esc(st.when) + '"><div class="f"><input class="inp" id="mg" type="number" step="0.01" inputmode="decimal" placeholder="Objetivo €" value="' + (st.goal ? st.goal / 100 : '') + '"><input class="inp" id="mo" type="number" step="0.01" inputmode="decimal" placeholder="Llevas €" value="' + (st.now ? st.now / 100 : '') + '"></div><button class="btn" id="sv">Guardar</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
+  sh.innerHTML = '<div style="font-weight:700;font-size:18px">' + (ed ? 'Editar meta' : 'Nueva meta') + '</div><input class="inp" id="mn" placeholder="Nombre" value="' + esc(st.n) + '"><input class="inp" id="mw" placeholder="Nota (opcional)" value="' + esc(st.when) + '"><div class="sub" style="margin:0">Fecha objetivo: pon solo "hasta" si es una fecha concreta, o "desde" y "hasta" si es un rango.</div><div class="f"><input class="inp" id="md" type="month" value="' + (st.desde || '') + '" aria-label="Desde"><input class="inp" id="mh" type="month" value="' + (st.hasta || '') + '" aria-label="Hasta"></div><div class="f"><input class="inp" id="mg" type="number" step="0.01" inputmode="decimal" placeholder="Objetivo €" value="' + (st.goal ? st.goal / 100 : '') + '"><input class="inp" id="mo" type="number" step="0.01" inputmode="decimal" placeholder="Llevas €" value="' + (st.now ? st.now / 100 : '') + '"></div><button class="btn" id="sv">Guardar</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
   $('#cx').onclick = close;
   $('#sv').onclick = async () => {
     const n = $('#mn').value.trim(), goal = Math.round((parseFloat($('#mg').value) || 0) * 100); if (!n || !goal) { toast('Pon nombre y objetivo'); return; }
-    await store.saveItem('metas', Object.assign({}, st, { n, when: $('#mw').value.trim(), goal, now: Math.round((parseFloat($('#mo').value) || 0) * 100) })); close(); toast('Guardado');
+    await store.saveItem('metas', Object.assign({}, st, { n, when: $('#mw').value.trim(), goal, now: Math.round((parseFloat($('#mo').value) || 0) * 100), desde: $('#md').value || '', hasta: $('#mh').value || $('#md').value || '' })); close(); toast('Guardado');
   };
   const dl = $('#dl'); if (dl) dl.onclick = async () => { if (confirm('¿Eliminar?')) { await store.deleteItem('metas', st.id); close(); } };
   bg.onclick = e => { if (e.target === bg) close(); }; bg.classList.add('on');
