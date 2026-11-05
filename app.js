@@ -136,7 +136,7 @@ function shell(inner) {
   return '<main id="main">' + inner + '</main>' +
     '<button class="fab" id="fab" aria-label="Añadir" style="' + (['mas', 'resumen', 'ajustes'].includes(S.tab) ? 'display:none' : '') + '"><svg viewBox="0 0 24 24">' + ICON.plus + '</svg></button>' +
     '<nav class="tabs">' + [['inicio', 'Inicio', 'home'], ['registro', 'Registro', 'list'], ['fijos', 'Fijos', 'rep'], ['apartados', 'Apartados', 'wallet'], ['metas', 'Metas', 'target'], ['mas', 'Más', 'more']].map(t =>
-      '<button class="tab' + (S.tab === t[0] || t[0] === 'mas' && ['viajes', 'regalos', 'resumen', 'ajustes'].includes(S.tab) || t[0] === 'apartados' && S.tab === 'anuales' ? ' on' : '') + '" data-tab="' + t[0] + '">' + svg(t[2]) + t[1] + '</button>').join('') + '</nav>';
+      '<button class="tab' + (S.tab === t[0] || t[0] === 'mas' && ['viajes', 'resumen', 'ajustes'].includes(S.tab) || t[0] === 'apartados' && ['anuales', 'regalos'].includes(S.tab) ? ' on' : '') + '" data-tab="' + t[0] + '">' + svg(t[2]) + t[1] + '</button>').join('') + '</nav>';
 }
 function mnav() {
   return '<div class="mnav"><button data-m="-1" aria-label="Mes anterior">' + svg('l') + '</button><span>' + label(S.key) + '</span><button data-m="1" aria-label="Mes siguiente">' + svg('r') + '</button></div>';
@@ -564,8 +564,8 @@ const fdFull = s => { const d = new Date(s + 'T00:00:00'); return d.getDate() + 
 const tripDates = t => t.a ? (t.b && t.b !== t.a ? fdFull(t.a) + ' – ' + fdFull(t.b) : fdFull(t.a)) : 'Fechas por decidir';
 function viewMas() {
   const L = (tab, ic, n, c) => '<button class="link" data-tab="' + tab + '"><div class="dot" style="background:var(--accent);color:var(--accent-ink)">' + svg(ic) + '</div><div class="m"><div class="n">' + n + '</div><div class="c">' + c + '</div></div>' + svg('chev') + '</button>';
-  return '<div class="head"><div><h1>Más</h1><div class="sub">Viajes, regalos y balance del año</div></div></div>' +
-    L('anuales', 'cal', 'Gastos anuales', 'Calendario de pagos y reserva') + L('viajes', 'plane', 'Viajes', S.viajes.length + ' viajes') + L('regalos', 'gift', 'Regalos', 'Calendario y apartado') + L('resumen', 'chart', 'Resumen del año', 'Mes a mes') + L('ajustes', 'cog', 'Ajustes', 'Tema, ciclo, presupuestos y copia');
+  return '<div class="head"><div><h1>Más</h1><div class="sub">Viajes, resumen y ajustes</div></div></div>' +
+    L('viajes', 'plane', 'Viajes', S.viajes.length + ' viajes') + L('resumen', 'chart', 'Resumen del año', 'Mes a mes') + L('ajustes', 'cog', 'Ajustes', 'Tema, ciclo, presupuestos y copia');
 }
 function viewViajes() {
   const list = S.viajes.slice().sort((a, b) => (b.a || '9999').localeCompare(a.a || '9999'));
@@ -597,7 +597,7 @@ function viewRegalos() {
   let cum = 0, worst = null;
   items.forEach(x => { cum += x.rem; const bal = saldo + mes * Math.max(0, x.o.getFullYear() * 12 + x.o.getMonth() + 1 - nowIdx) - cum; if (!worst || bal < worst.bal) worst = { bal, x }; });
   const hint = !worst ? '' : worst.bal < 0 ? '<div class="hint warn">Con tu aportación actual te faltarán <b>' + eur(-worst.bal) + '</b> para <b>' + esc(worst.x.r.n) + '</b>. Sube la aportación al apartado o ajusta los presupuestos.</div>' : '<div class="hint">El apartado cubre todos los regalos del año. El punto más justo es <b>' + esc(worst.x.r.n) + '</b>: te sobrarían <b>' + eur(worst.bal) + '</b>.</div>';
-  return '<div class="head"><div style="display:flex;gap:10px;align-items:center"><button class="gear" data-tab="' + (S.prev || 'mas') + '" aria-label="Volver">' + svg('l') + '</button><div><h1>Regalos</h1><div class="sub">Calendario de los próximos 12 meses</div></div></div></div>' +
+  return '<div class="head"><div style="display:flex;gap:10px;align-items:center"><button class="gear" data-tab="' + (S.prev || 'apartados') + '" aria-label="Volver">' + svg('l') + '</button><div><h1>Regalos</h1><div class="sub">Calendario de los próximos 12 meses</div></div></div></div>' +
     '<div class="hero"><div class="l">En el apartado de regalos</div><div class="big">' + eur(saldo) + '</div><div class="row2"><div><div class="l">Aportas</div><b>' + eur(mes) + ' / mes</b></div><div><div class="l">Necesitas</div><b>' + eur(need) + ' / mes</b></div><div><div class="l">Total al año</div><b>' + eur(tot) + '</b></div></div></div>' + hint +
     '<h2>Próximos regalos</h2><div class="list">' + (items.map(x => {
       const done = x.spent >= x.r.bud * 0.8 && x.spent > 0;
@@ -658,7 +658,10 @@ function viewApartados() {
     return '<button class="it" data-ap="' + x.id + '"><div class="dot" style="background:' + (x.color || 'var(--accent)') + '">' + ico(x.id) + '</div><div class="m"><div class="n">' + esc(x.n) + '</div><div class="c">' + sub + '</div>' + (x.kind !== 'ahorro' ? '<div class="bar" style="height:5px;margin-top:6px"><i style="width:' + p + '%;background:' + (z.sp > x.mes ? 'var(--neg)' : (x.color || 'var(--accent)')) + '"></i></div>' : '') + '</div><div class="a ' + (z.s < 0 ? 'neg' : '') + '">' + eur(z.s) + '</div></button>';
   };
   const grp = k => { const l = aps.filter(z => z.x.kind === k); return l.length ? '<h2>' + KIND_L[k] + '</h2><div class="list">' + l.map(row).join('') + '</div>' : ''; };
+  const aTot = sumA(S.anuales), rTot = S.regalos.reduce((t, x) => t + (x.bud || 0), 0);
+  const sub = (tab, ic, n, big, c) => '<button class="stat" data-tab="' + tab + '" style="text-align:left;display:block;width:100%"><div class="l" style="display:flex;gap:6px;align-items:center"><span style="width:18px;height:18px;display:inline-flex">' + svg(ic) + '</span>' + n + '</div><div class="v">' + big + '</div><div class="sub" style="margin:0;font-size:11.5px">' + c + '</div></button>';
   return '<div class="head"><div><h1>Apartados</h1><div class="sub">Tu dinero repartido</div></div>' + mnav() + '</div>' +
+    '<div class="grid2">' + sub('anuales', 'cal', 'Gastos anuales', eur(aTot), S.anuales.length + ' pagos · reserva ' + eur(apSaldoOr('anual', S.cfg.reservaSaldo))) + sub('regalos', 'gift', 'Regalos', eur(rTot), S.regalos.length + ' personas · apartado ' + eur(apSaldoOr('regalos', S.cfg.regalosSaldo))) + '</div>' +
     (S.apartados.length ? '<div class="hero"><div class="l">Disponible en apartados</div><div class="big">' + eur(sumK('libre') + sumK('reserva')) + '</div><div class="row2"><div><div class="l">Libres</div><b>' + eur(sumK('libre')) + '</b></div><div><div class="l">Reservas</div><b>' + eur(sumK('reserva')) + '</b></div><div><div class="l">Ahorro</div><b>' + eur(sumK('ahorro')) + '</b></div></div></div>' + covers +
     '<h2>Traspasos del ciclo</h2><div class="list">' + plan.map(z => {
       const ts = trasIn(z.x.id), done = ts.length > 0;
