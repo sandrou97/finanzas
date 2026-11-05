@@ -134,9 +134,9 @@ function coverFor(x, saldo) {
 /* --------------------------------- vistas --------------------------------- */
 function shell(inner) {
   return '<main id="main">' + inner + '</main>' +
-    '<button class="fab" id="fab" aria-label="Añadir" style="' + (['mas', 'resumen', 'ajustes'].includes(S.tab) ? 'display:none' : '') + '"><svg viewBox="0 0 24 24">' + ICON.plus + '</svg></button>' +
+    '<button class="fab" id="fab" aria-label="Añadir" style="' + (['mas', 'resumen', 'estadisticas', 'ajustes'].includes(S.tab) ? 'display:none' : '') + '"><svg viewBox="0 0 24 24">' + ICON.plus + '</svg></button>' +
     '<nav class="tabs">' + [['inicio', 'Inicio', 'home'], ['registro', 'Registro', 'list'], ['fijos', 'Fijos', 'rep'], ['apartados', 'Apartados', 'wallet'], ['metas', 'Metas', 'target'], ['mas', 'Más', 'more']].map(t =>
-      '<button class="tab' + (S.tab === t[0] || t[0] === 'mas' && ['viajes', 'resumen', 'ajustes'].includes(S.tab) || t[0] === 'apartados' && ['anuales', 'regalos'].includes(S.tab) ? ' on' : '') + '" data-tab="' + t[0] + '">' + svg(t[2]) + t[1] + '</button>').join('') + '</nav>';
+      '<button class="tab' + (S.tab === t[0] || t[0] === 'mas' && ['viajes', 'resumen', 'estadisticas', 'ajustes'].includes(S.tab) || t[0] === 'apartados' && ['anuales', 'regalos'].includes(S.tab) ? ' on' : '') + '" data-tab="' + t[0] + '">' + svg(t[2]) + t[1] + '</button>').join('') + '</nav>';
 }
 function mnav() {
   return '<div class="mnav"><button data-m="-1" aria-label="Mes anterior">' + svg('l') + '</button><span>' + label(S.key) + '</span><button data-m="1" aria-label="Mes siguiente">' + svg('r') + '</button></div>';
@@ -215,12 +215,13 @@ function render() {
   const app = $('#app');
   if (!S.user) { app.innerHTML = S.ready ? viewLogin() : '<div class="login"><div class="sub">Cargando…</div></div>'; const b = $('#login'); if (b) b.onclick = async () => { try { await store.signIn(); } catch (e) { $('#lerr').textContent = 'No se pudo iniciar sesión: ' + (e.code || e.message); } }; return; }
   const keep = $('#main') ? $('#main').scrollTop : 0;
-  app.innerHTML = shell(({ inicio: viewInicio, registro: viewRegistro, fijos: viewFijos, apartados: viewApartados, anuales: viewAnuales, metas: viewMetas, mas: viewMas, viajes: () => S.trip ? viewViaje() : viewViajes(), regalos: viewRegalos, resumen: viewResumen, ajustes: viewAjustes })[S.tab]());
+  app.innerHTML = shell(({ inicio: viewInicio, registro: viewRegistro, fijos: viewFijos, apartados: viewApartados, anuales: viewAnuales, metas: viewMetas, mas: viewMas, viajes: () => S.trip ? viewViaje() : viewViajes(), regalos: viewRegalos, estadisticas: viewEstadisticas, resumen: viewResumen, ajustes: viewAjustes })[S.tab]());
   $('#main').scrollTop = keep;
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { if (['ajustes', 'anuales', 'regalos'].includes(b.dataset.tab)) S.prev = S.tab; S.trip = null; S.tab = b.dataset.tab; render(); });
   app.querySelectorAll('[data-trip]').forEach(b => b.onclick = () => { S.trip = b.dataset.trip; render(); });
   app.querySelectorAll('[data-rg]').forEach(b => b.onclick = () => openForm('regalos', S.regalos.find(x => x.id === b.dataset.rg)));
   app.querySelectorAll('[data-etrip]').forEach(b => b.onclick = () => openForm('viajes', S.viajes.find(x => x.id === S.trip)));
+  app.querySelectorAll('[data-per]').forEach(b => b.onclick = () => { S.per = +b.dataset.per; render(); });
   app.querySelectorAll('[data-yr]').forEach(b => b.onclick = () => { S.yr += +b.dataset.yr; render(); });
   app.querySelectorAll('[data-meta]').forEach(b => b.onclick = () => openMeta(S.metas.find(x => x.id === b.dataset.meta)));
   const dd = $('#deuda'); if (dd) dd.onclick = openDeuda;
@@ -598,8 +599,8 @@ const fdFull = s => { const d = new Date(s + 'T00:00:00'); return d.getDate() + 
 const tripDates = t => t.a ? (t.b && t.b !== t.a ? fdFull(t.a) + ' – ' + fdFull(t.b) : fdFull(t.a)) : 'Fechas por decidir';
 function viewMas() {
   const L = (tab, ic, n, c) => '<button class="link" data-tab="' + tab + '"><div class="dot" style="background:var(--accent);color:var(--accent-ink)">' + svg(ic) + '</div><div class="m"><div class="n">' + n + '</div><div class="c">' + c + '</div></div>' + svg('chev') + '</button>';
-  return '<div class="head"><div><h1>Más</h1><div class="sub">Viajes, resumen y ajustes</div></div></div>' +
-    L('viajes', 'plane', 'Viajes', S.viajes.length + ' viajes') + L('resumen', 'chart', 'Resumen del año', 'Mes a mes') + L('ajustes', 'cog', 'Ajustes', 'Tema, ciclo, presupuestos y copia');
+  return '<div class="head"><div><h1>Más</h1><div class="sub">Viajes, resumen, estadísticas y ajustes</div></div></div>' +
+    L('viajes', 'plane', 'Viajes', S.viajes.length + ' viajes') + L('resumen', 'chart', 'Resumen del año', 'Mes a mes') + L('estadisticas', 'trend', 'Estadísticas', 'Gráficas y datos curiosos') + L('ajustes', 'cog', 'Ajustes', 'Tema, ciclo, presupuestos y copia');
 }
 function viewViajes() {
   const list = S.viajes.slice().sort((a, b) => (b.a || '9999').localeCompare(a.a || '9999'));
@@ -638,6 +639,51 @@ function viewRegalos() {
       return '<button class="it" data-rg="' + x.r.id + '"><div class="mon' + (x.r.bud >= 10000 ? ' big' : '') + '" style="flex:none">' + MES[x.o.getMonth()].slice(0, 3) + '</div><div class="m"><div class="n">' + esc(x.r.n) + '</div><div class="c">' + x.o.getDate() + ' ' + MES[x.o.getMonth()] + ' ' + x.o.getFullYear() + (x.spent ? ' · gastado ' + eur(x.spent) : '') + '</div></div><div class="a ' + (done ? 'pos' : '') + '">' + (done ? '✓ ' : '') + eur(x.r.bud) + '</div></button>';
     }).join('') || '<div class="empty">Pulsa + para añadir un regalo.</div>') + '</div>' +
     '<div class="sub" style="padding:0 4px">Al apuntar un gasto de Regalos puedes elegir para quién es, y aparece aquí como gastado. El saldo y la aportación del apartado se cambian en Apartados.</div>';
+}
+function viewEstadisticas() {
+  const per = S.per || 6, allKeys = Array.from(new Set(S.all.map(m => m.m).filter(Boolean))).sort();
+  const keys = per === 0 ? allKeys : allKeys.slice(-per), set = new Set(keys), movs = S.all.filter(m => set.has(m.m));
+  const rows = keys.map(k => ({ k, r: calc(S.all.filter(m => m.m === k)) }));
+  const lbl = k => MES[Number(k.split('-')[1]) - 1].slice(0, 3);
+  const gast = movs.filter(m => m.t === 'gasto'), totG = gast.reduce((t, m) => t + m.a, 0), totI = rows.reduce((t, x) => t + x.r.ing, 0), totT = rows.reduce((t, x) => t + x.r.tras, 0);
+  const full = rows.filter(x => x.r.ing > 0), tasa = totI ? Math.round(totT / totI * 100) : 0;
+  const seg = ['todos', 3, 6, 12].map(v => v === 'todos' ? 0 : v);
+  const chips = '<div class="chips">' + [[3, 'Últimos 3'], [6, 'Últimos 6'], [12, 'Últimos 12'], [0, 'Todo']].map(c => '<button class="chip' + (per === c[0] ? ' on' : '') + '" data-per="' + c[0] + '">' + c[1] + ' ciclos</button>').join('') + '</div>';
+  if (!rows.length) return '<div class="head"><div style="display:flex;gap:10px;align-items:center"><button class="gear" data-tab="mas" aria-label="Volver">' + svg('l') + '</button><div><h1>Estadísticas</h1></div></div></div><div class="empty">Aún no hay datos.</div>';
+  // 1. entra / gasta / aparta por ciclo
+  const W = 320, H = 130, mx = Math.max(1, ...rows.map(x => Math.max(x.r.ing, x.r.gas, x.r.tras))) * 1.08, gw = (W - 10) / rows.length, bw = Math.max(4, Math.min(14, gw / 3.4));
+  const bars = rows.map((x, i) => { const cx = 5 + gw * (i + .5), b = (v, o, col) => '<rect x="' + (cx + o * (bw + 1) - bw / 2) + '" y="' + (H - v / mx * H) + '" width="' + bw + '" height="' + (v / mx * H) + '" rx="2" fill="' + col + '"/>';
+    return b(x.r.ing, -1, 'var(--pos)') + b(x.r.gas, 0, 'var(--neg)') + b(x.r.tras, 1, '#2A6FDB') + '<text x="' + cx + '" y="' + (H + 13) + '" text-anchor="middle" font-size="9" fill="var(--muted)">' + lbl(x.k) + '</text>'; }).join('');
+  const chart1 = '<svg viewBox="0 0 ' + W + ' ' + (H + 18) + '" width="100%" role="img" aria-label="Ingresos, gastos y ahorro por ciclo">' + bars + '</svg><div class="sub" style="margin:0"><span class="pos">■</span> Entra · <span class="neg">■</span> Gastas · <span style="color:#2A6FDB">■</span> Apartas</div>';
+  // 2. donut por categoría
+  const byc = {}; gast.forEach(m => { const c = catFix(m); byc[c] = (byc[c] || 0) + m.a; });
+  const ck = Object.keys(byc).sort((a, b) => byc[b] - byc[a]), R = 46, C = 2 * Math.PI * R; let off = 0;
+  const donut = '<svg viewBox="0 0 120 120" width="130" height="130" role="img" aria-label="Gasto por categoría"><g transform="rotate(-90 60 60)">' + ck.map(k => { const f = byc[k] / (totG || 1), d = '<circle cx="60" cy="60" r="' + R + '" fill="none" stroke="' + catOf(k).col + '" stroke-width="18" stroke-dasharray="' + (f * C).toFixed(2) + ' ' + C.toFixed(2) + '" stroke-dashoffset="' + (-off * C).toFixed(2) + '"/>'; off += f; return d; }).join('') + '</g><text x="60" y="64" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">' + eur(totG).replace(',00', '') + '</text></svg>';
+  const legend = ck.slice(0, 7).map(k => '<div class="row2"><span><i style="display:inline-block;width:9px;height:9px;border-radius:5px;background:' + catOf(k).col + ';margin-right:6px"></i>' + catOf(k).n + '</span><span><b>' + eur(byc[k]) + '</b> · ' + Math.round(byc[k] / (totG || 1) * 100) + ' %</span></div>').join('');
+  // 3. día de la semana
+  const dw = [0, 0, 0, 0, 0, 0, 0], dn = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  gast.filter(m => CATS[catFix(m)] && CATS[catFix(m)].libre).forEach(m => { dw[(new Date(m.d + 'T00:00:00').getDay() + 6) % 7] += m.a; });
+  const dmx = Math.max(1, ...dw);
+  const chart3 = '<svg viewBox="0 0 320 110" width="100%" role="img" aria-label="Gasto libre por día de la semana">' + dw.map((v, i) => { const h = v / dmx * 70, x = 14 + i * 43; return '<rect x="' + x + '" y="' + (86 - h) + '" width="30" height="' + h + '" rx="4" fill="var(--accent)" opacity="' + (v === dmx ? 1 : .55) + '"/><text x="' + (x + 15) + '" y="102" text-anchor="middle" font-size="10" fill="var(--muted)">' + dn[i] + '</text><text x="' + (x + 15) + '" y="' + (82 - h) + '" text-anchor="middle" font-size="8.5" fill="var(--muted)">' + Math.round(v / 100) + '</text>'; }).join('') + '</svg>';
+  const topDay = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábados', 'domingos'][dw.indexOf(dmx)];
+  // 4. top gastos y comercios
+  const top = gast.slice().sort((a, b) => b.a - a.a).slice(0, 8);
+  const cnt = {}; gast.filter(m => m.n && !m.f).forEach(m => { const n = m.n.trim().toLowerCase(); (cnt[n] = cnt[n] || { n: m.n.trim(), a: 0, c: 0 }); cnt[n].a += m.a; cnt[n].c++; });
+  const rep = Object.values(cnt).filter(x => x.c > 1).sort((a, b) => b.a - a.a).slice(0, 5);
+  // 5. apartado acumulado
+  let acc = 0; const accV = rows.map(x => (acc += x.r.tras)), amx = Math.max(1, acc), AW = 320, AH = 90;
+  const line = accV.length > 1 ? '<svg viewBox="0 0 ' + AW + ' ' + (AH + 16) + '" width="100%" role="img" aria-label="Dinero apartado acumulado"><polyline fill="none" stroke="#2A6FDB" stroke-width="2.4" stroke-linejoin="round" points="' + accV.map((v, i) => (8 + (AW - 16) * i / (accV.length - 1)).toFixed(1) + ',' + (AH - v / amx * AH + 4).toFixed(1)).join(' ') + '"/>' + rows.map((x, i) => '<text x="' + (8 + (AW - 16) * i / (accV.length - 1)) + '" y="' + (AH + 14) + '" text-anchor="middle" font-size="9" fill="var(--muted)">' + lbl(x.k) + '</text>').join('') + '</svg>' : '';
+  const mejor = full.length ? full.reduce((a, b) => (b.r.ing - b.r.gas > a.r.ing - a.r.gas ? b : a)) : null, caro = rows.reduce((a, b) => (b.r.gas > a.r.gas ? b : a));
+  return '<div class="head"><div style="display:flex;gap:10px;align-items:center"><button class="gear" data-tab="mas" aria-label="Volver">' + svg('l') + '</button><div><h1>Estadísticas</h1><div class="sub">' + keys.length + (keys.length === 1 ? ' ciclo · ' + lbl(keys[0]) : ' ciclos · ' + lbl(keys[0]) + ' – ' + lbl(keys[keys.length - 1])) + '</div></div></div></div>' + chips +
+    '<div class="grid2"><div class="stat"><div class="l">Media gastada al ciclo</div><div class="v">' + eur(Math.round(totG / keys.length)) + '</div></div><div class="stat"><div class="l">Tasa de ahorro</div><div class="v ' + (tasa > 0 ? 'pos' : '') + '">' + tasa + ' %</div></div>' +
+    '<div class="stat"><div class="l">Ciclo más caro</div><div class="v" style="font-size:17px">' + lbl(caro.k) + ' · ' + eur(caro.r.gas) + '</div></div><div class="stat"><div class="l">Gasto libre diario</div><div class="v">' + eur(Math.round(gast.filter(m => CATS[catFix(m)] && CATS[catFix(m)].libre).reduce((t, m) => t + m.a, 0) / (keys.length * 30))) + '</div></div></div>' +
+    '<h2>Entra, gastas y apartas</h2><div class="card">' + chart1 + '</div>' +
+    '<h2>En qué se va el dinero</h2><div class="card"><div style="display:flex;gap:14px;align-items:center"><div style="flex:none">' + donut + '</div><div style="flex:1;display:flex;flex-direction:column;gap:5px;font-size:13px">' + legend + '</div></div></div>' +
+    '<h2>Cuándo gastas</h2><div class="card">' + chart3 + '<div class="sub" style="margin:0">Gasto libre (€) por día de la semana. Gastas más los <b>' + topDay + '</b>.</div></div>' +
+    (line ? '<h2>Lo que has apartado</h2><div class="card">' + line + '<div class="sub" style="margin:0">Acumulado en el periodo: <b>' + eur(acc) + '</b></div></div>' : '') +
+    '<h2>Los gastos más grandes</h2><div class="list">' + top.map(m => '<div class="it" style="cursor:default"><div class="m"><div class="n">' + esc(m.n || catOf(catFix(m)).n) + '</div><div class="c">' + fdate(new Date(m.d + 'T00:00:00')) + ' · ' + catOf(catFix(m)).n + '</div></div><div class="a">' + eur(m.a) + '</div></div>').join('') + '</div>' +
+    (rep.length ? '<h2>Lo que más repites</h2><div class="list">' + rep.map(x => '<div class="it" style="cursor:default"><div class="m"><div class="n">' + esc(x.n) + '</div><div class="c">' + x.c + ' veces</div></div><div class="a">' + eur(x.a) + '</div></div>').join('') + '</div>' : '') +
+    (mejor ? '<div class="hint">Tu mejor ciclo fue <b>' + lbl(mejor.k) + '</b>: entraron ' + eur(mejor.r.ing) + ' y gastaste ' + eur(mejor.r.gas) + '.</div>' : '');
 }
 function viewResumen() {
   const y = S.yr, rows = [];
