@@ -96,3 +96,23 @@ main>*{flex-shrink:0}
 .tbl{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}.tbl th{font-size:11px;color:var(--muted);font-weight:600;text-align:right;padding:6px 4px}.tbl th:first-child,.tbl td:first-child{text-align:left}.tbl td{padding:8px 4px;border-top:1px solid var(--line);text-align:right}.tbl tr.tot td{font-weight:700}
 .tbl{font-size:11.5px;table-layout:auto}.tbl td,.tbl th{padding-left:2px;padding-right:2px}
 main{padding-bottom:96px}
+
+/* ---------- Escritorio (el móvil no cambia) ---------- */
+@media (min-width:900px){
+  #app{max-width:1240px;display:grid;grid-template-columns:210px 1fr;grid-template-rows:1fr}
+  .tabs{grid-column:1;grid-row:1;display:flex;flex-direction:column;gap:4px;border-top:0;border-right:1px solid var(--line);padding:24px 12px;background:var(--bg);align-self:stretch}
+  .tabs::before{content:'Finanzas';font-size:20px;font-weight:700;letter-spacing:-.02em;padding:0 12px 18px}
+  .tab{flex-direction:row;gap:12px;font-size:14px;padding:11px 12px;border-radius:12px;justify-content:flex-start}
+  .tab.on{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  main{grid-column:2;grid-row:1;padding:28px 32px 96px;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;align-content:start;grid-auto-rows:max-content;min-height:0}
+  main>.head,main>h2,main>.chips,main>.hint,main>.banner,main>.day,main>.list,main>.tbl,main>.f,main>.empty,main>.hero,main>button.btn,main>.seg{grid-column:1/-1}
+  main>.list{max-width:none}
+  .fab{right:32px;bottom:32px}
+  .sheet-bg.on{display:flex;align-items:center;justify-content:center;padding:24px}
+  .sheet{position:relative;width:480px;max-width:100%;max-height:90vh;border-radius:24px;padding:20px}
+  .login{max-width:420px}
+}
+@media (min-width:1300px){main>.hero{grid-column:1/-1}}
+@media (min-width:900px){
+  main>.chips{overflow:visible;flex-wrap:wrap}
+}
