@@ -504,6 +504,30 @@ function loanSchedule(c, withPlan) {
   }
   return { rows, interest, fees };
 }
+function debtScenarios() {
+  const c = S.cfg.deuda, base = loanSchedule(c, false), plan = loanSchedule(c, true);
+  const ah0 = ahorroNow(), mes = apMesOr('ahorro', 0), f = 1 + c.fee / 100;
+  let key = null;
+  base.rows.forEach((r, i) => { if (!key && r.bal > 0 && ah0 + mes * (i + 1) >= r.bal * f) key = r.key; });
+  const ahorro = key ? loanSchedule(Object.assign({}, c, { extra: 0, liquida: key }), true) : null;
+  const out = [{ n: 'Solo cuotas', col: 'var(--muted)', sc: base }, { n: 'Tu plan actual', col: 'var(--accent)', sc: plan }];
+  if (ahorro) out.push({ n: 'Liquidar con el ahorro', col: '#E08A2B', sc: ahorro });
+  return out.map(o => { const l = o.sc.rows[o.sc.rows.length - 1]; return Object.assign(o, { end: l.key, cost: o.sc.interest + o.sc.fees }); });
+}
+function debtChart() {
+  const sc = debtScenarios(), W = 340, H = 190, L = 38, B = 22, T = 8, R = 8, c = S.cfg.deuda;
+  const keys = []; { let [y, m] = c.start.split('-').map(Number); const n = Math.max.apply(null, sc.map(o => o.sc.rows.length)); for (let i = 0; i <= n; i++) { keys.push(mk(y, m)); if (++m > 12) { m = 1; y++; } } }
+  const X = i => L + (W - L - R) * i / (keys.length - 1), maxV = c.d0, Y = v => T + (H - T - B) * (1 - v / maxV);
+  const pts = o => { const by = {}; o.sc.rows.forEach(r => { by[r.key] = r.bal; }); let last = c.d0; return keys.map((k, i) => { if (k in by) last = by[k]; else if (i > 0 && last > 0 && i > o.sc.rows.length) last = 0; return X(i).toFixed(1) + ',' + Y(last).toFixed(1); }).join(' '); };
+  let grid = ''; for (let i = 0; i <= 4; i++) { const v = maxV * i / 4; grid += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--line)"/><text x="' + (L - 4) + '" y="' + (Y(v) + 3) + '" text-anchor="end" font-size="9" fill="var(--muted)">' + Math.round(v / 100000) + 'k</text>'; }
+  let xl = ''; keys.forEach((k, i) => { if ((k.endsWith('-01') && !(i > 0 && i < 4 && false)) || (i === 0 && keys.findIndex(q => q.endsWith('-01')) > 4)) xl += '<text x="' + X(i) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : 'middle') + '" font-size="9" fill="var(--muted)">' + (i === 0 ? MES[Number(k.split('-')[1]) - 1].slice(0, 3) + ' ' : '') + k.split('-')[0] + '</text>'; });
+  const mfmt = k => MES[Number(k.split('-')[1]) - 1].slice(0, 3) + ' ' + k.split('-')[0];
+  const base = sc[0].cost;
+  return '<div class="card"><div style="font-weight:600">Comparar formas de pagar el coche</div><svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Deuda pendiente mes a mes según cada opción">' + grid + xl +
+    sc.map(o => '<polyline fill="none" stroke="' + o.col + '" stroke-width="2.4" stroke-linejoin="round" points="' + pts(o) + '"/>').join('') + '</svg>' +
+    sc.map(o => '<div style="display:flex;flex-direction:column;gap:2px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:5px;background:' + o.col + ';margin-right:6px"></i><b>' + o.n + '</b></span><span style="margin-left:16px;font-size:13px"><b>' + mfmt(o.end) + '</b> · ' + eur(o.cost) + ' de coste' + (o.cost < base ? ' <b class="pos">(−' + eur(base - o.cost) + ')</b>' : '') + '</span></div>').join('') +
+    '<div class="sub" style="margin:0">Coste = intereses + comisión de cancelación. "Liquidar con el ahorro" supone no hacer el pago extra y liquidar en cuanto tu ahorro del coche (con su aportación mensual actual) cubra lo que debes más la comisión.</div></div>';
+}
 function metaPlan(g) {
   if (!g.hasta) return null;
   const n = new Date(), idx = k => { const [y, m] = k.split('-').map(Number); return y * 12 + m; }, nowI = n.getFullYear() * 12 + n.getMonth() + 1;
@@ -531,6 +555,7 @@ function viewMetas() {
     shown.map(r => '<div class="step"><i></i><span>' + lbl(r) + '</span><b>' + eur(r.bal) + '</b></div>').join('') + '</div></div>' +
     (saved > 0 ? '<div class="hint">Con este plan terminas de pagar en <b>' + MES[Number(last.key.split('-')[1]) - 1] + ' ' + last.key.split('-')[0] + '</b> y te ahorras unos <b>' + eur(saved) + '</b> entre intereses y comisiones, frente a seguir pagando la cuota hasta el final.</div>' : '') +
     (ex ? '<div class="card"><div class="row2"><b>Ahorro para el pago extra</b><span style="color:var(--muted)">' + MES[Number(c.extraMes.split('-')[1]) - 1].slice(0, 3) + '</span></div><div class="row2" style="align-items:baseline"><span style="font-size:24px;font-weight:700;font-variant-numeric:tabular-nums">' + eur(ahorroNow()) + '</span><span style="color:var(--muted)">de ' + eur(ex) + ' (extra + ' + c.fee + ' % de comisión)</span></div><div class="bar"><i style="width:' + pct + '%"></i></div></div>' : '') +
+    debtChart() +
     '<button class="btn sec" id="deuda">Editar plan de la deuda y ahorro</button>' +
     '<h2>Metas</h2>' + (metas.map(g => {
       const p = g.goal ? Math.min(100, Math.round(g.now / g.goal * 100)) : 0, mp = metaPlan(g);
