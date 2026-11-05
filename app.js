@@ -374,16 +374,19 @@ function cuentaCard() {
 }
 function openConciliar() {
   const bg = $('#sheetBg'), sh = $('#sheet'), est = calcCuenta(), hist = (S.cfg.concil || []).slice(-3).reverse();
-  sh.innerHTML = '<div style="font-weight:700;font-size:18px">Conciliar con el banco</div><div class="sub">Estimado por la app: <b>' + (est == null ? '—' : eur(est)) + '</b>. Pon el saldo real que ves en tu banco y verás la diferencia.</div>' +
-    '<input class="inp" id="cb" inputmode="decimal" placeholder="Saldo real del banco (€)"><div id="cd" class="hint" style="display:none"></div>' +
-    (hist.length ? '<div class="sub">Últimas: ' + hist.map(h => fdate(new Date(h.fecha + 'T00:00:00')) + ' (' + (h.dif >= 0 ? '+' : '') + eur(h.dif) + ')').join(' · ') + '</div>' : '') +
-    '<button class="btn" id="cs2">Guardar saldo</button><button class="btn sec" id="cx">Cancelar</button>';
-  const val = () => { const n = parseFloat(String($('#cb').value).replace(/\./g, '').replace(',', '.')); return isNaN(n) ? null : Math.round(n * 100); };
+  const estAp = S.apartados.filter(spendable).reduce((t, x) => t + saldoOf(x), 0), estAh = apById('ahorro') ? saldoOf(apById('ahorro')) : null;
+  const fld = (id, l, e) => '<div class="sub" style="margin:0">' + l + ' · la app dice <b>' + (e == null ? '—' : eur(e)) + '</b></div><input class="inp" id="' + id + '" inputmode="decimal" placeholder="Saldo real (€)"><div id="' + id + 'd" class="hint" style="display:none"></div>';
+  sh.innerHTML = '<div style="font-weight:700;font-size:18px">Conciliar con el banco</div><div class="sub">Pon lo que ves en el banco; deja en blanco lo que no quieras comprobar.</div>' +
+    fld('cb', 'Cuenta principal (sin apartados)', est) + fld('cp', 'Apartados dentro de la principal', estAp) + (estAh != null ? fld('cq', 'Cuenta ahorro (coche)', estAh) : '') +
+    (hist.length ? '<div class="sub">Últimas (principal): ' + hist.map(h => fdate(new Date(h.fecha + 'T00:00:00')) + ' (' + (h.dif >= 0 ? '+' : '') + eur(h.dif) + ')').join(' · ') + '</div>' : '') +
+    '<button class="btn" id="cs2">Guardar</button><button class="btn sec" id="cx">Cancelar</button>';
+  const val = id => { const el = $('#' + id); if (!el) return null; const n = parseFloat(String(el.value).replace(/\./g, '').replace(',', '.')); return isNaN(n) ? null : Math.round(n * 100); };
   const close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
-  $('#cb').oninput = () => { const v = val(), d = $('#cd'); if (v == null || est == null) { d.style.display = 'none'; return; } const dif = v - est; d.style.display = 'block'; d.className = 'hint' + (Math.abs(dif) > 100 ? ' warn' : ''); d.textContent = Math.abs(dif) < 1 ? 'Cuadra perfecto.' : (dif > 0 ? 'Tienes ' + eur(dif) + ' más de lo que dice la app: te falta apuntar un ingreso o sobra un gasto.' : 'Tienes ' + eur(-dif) + ' menos de lo que dice la app: te falta apuntar algún gasto.'); };
+  const show = (id, e, msg) => { const v = val(id), d = $('#' + id + 'd'); if (!d) return; if (v == null || e == null) { d.style.display = 'none'; return; } const dif = v - e; d.style.display = 'block'; d.className = 'hint' + (Math.abs(dif) > 100 ? ' warn' : ''); d.textContent = Math.abs(dif) < 1 ? 'Cuadra perfecto.' : (dif > 0 ? 'Tienes ' + eur(dif) + ' más que la app. ' + msg[0] : 'Tienes ' + eur(-dif) + ' menos que la app. ' + msg[1]); };
+  [['cb', est, ['Falta apuntar un ingreso o sobra un gasto.', 'Falta apuntar algún gasto.']], ['cp', estAp, ['Quizá falta un traspaso a un apartado.', 'Quizá falta un gasto en algún apartado o hay un traspaso de más.']], ['cq', estAh, ['Falta un traspaso al ahorro.', 'Hay un traspaso de más o un gasto sin apuntar.']]].forEach(z => { const el = $('#' + z[0]); if (el) el.oninput = () => show(z[0], z[1], z[2]); });
   $('#cx').onclick = close; bg.onclick = e => { if (e.target === bg) close(); };
   $('#cs2').onclick = async () => {
-    const v = val(); if (v == null) { toast('Pon el saldo'); return; }
+    const v = val('cb'); if (v == null) { toast('Pon al menos el saldo de la principal'); return; }
     const hoy = iso(new Date()), concil = (S.cfg.concil || []).concat(est == null ? [] : [{ fecha: hoy, dif: v - est }]).slice(-12);
     await store.saveConfig({ ...S.cfg, cuenta: { fecha: hoy, saldo: v }, concil }); close(); toast('Saldo conciliado');
   };
