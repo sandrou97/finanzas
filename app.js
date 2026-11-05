@@ -215,7 +215,8 @@ function render() {
   const app = $('#app');
   if (!S.user) { app.innerHTML = S.ready ? viewLogin() : '<div class="login"><div class="sub">Cargando…</div></div>'; const b = $('#login'); if (b) b.onclick = async () => { try { await store.signIn(); } catch (e) { $('#lerr').textContent = 'No se pudo iniciar sesión: ' + (e.code || e.message); } }; return; }
   const keep = $('#main') ? $('#main').scrollTop : 0;
-  app.innerHTML = shell(({ inicio: viewInicio, registro: viewRegistro, fijos: viewFijos, apartados: viewApartados, anuales: viewAnuales, metas: viewMetas, mas: viewMas, viajes: () => S.trip ? viewViaje() : viewViajes(), regalos: viewRegalos, estadisticas: viewEstadisticas, resumen: viewResumen, ajustes: viewAjustes })[S.tab]());
+  let body; try { body = ({ inicio: viewInicio, registro: viewRegistro, fijos: viewFijos, apartados: viewApartados, anuales: viewAnuales, metas: viewMetas, mas: viewMas, viajes: () => S.trip ? viewViaje() : viewViajes(), regalos: viewRegalos, estadisticas: viewEstadisticas, resumen: viewResumen, ajustes: viewAjustes })[S.tab](); } catch (e) { console.error(e); body = '<div class="head"><div><h1>Error</h1></div></div><div class="hint warn">No se pudo mostrar esta pantalla: ' + esc(String(e && e.message || e)) + '</div>'; }
+  app.innerHTML = shell(body);
   $('#main').scrollTop = keep;
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { if (['ajustes', 'anuales', 'regalos'].includes(b.dataset.tab)) S.prev = S.tab; S.trip = null; S.tab = b.dataset.tab; render(); });
   app.querySelectorAll('[data-trip]').forEach(b => b.onclick = () => { S.trip = b.dataset.trip; render(); });
@@ -555,7 +556,7 @@ function viewMetas() {
     '<div class="hero"><div class="row2"><span class="l">Debes del coche</span><span class="l">' + c.rate.toLocaleString('de-DE') + ' % · cuota ' + eur(c.cuota) + '</span></div><div class="big">' + eur(cur) + '</div><div style="display:flex;flex-direction:column;gap:8px">' +
     shown.map(r => '<div class="step"><i></i><span>' + lbl(r) + '</span><b>' + eur(r.bal) + '</b></div>').join('') + '</div></div>' +
     (saved > 0 ? '<div class="hint">Con este plan terminas de pagar en <b>' + MES[Number(last.key.split('-')[1]) - 1] + ' ' + last.key.split('-')[0] + '</b> y te ahorras unos <b>' + eur(saved) + '</b> entre intereses y comisiones, frente a seguir pagando la cuota hasta el final.</div>' : '') +
-    (ex ? '<div class="card"><div class="row2"><b>Ahorro para el pago extra</b><span style="color:var(--muted)">' + MES[Number(c.extraMes.split('-')[1]) - 1].slice(0, 3) + '</span></div><div class="row2" style="align-items:baseline"><span style="font-size:24px;font-weight:700;font-variant-numeric:tabular-nums">' + eur(ahorroNow()) + '</span><span style="color:var(--muted)">de ' + eur(ex) + ' (extra + ' + c.fee + ' % de comisión)</span></div><div class="bar"><i style="width:' + pct + '%"></i></div></div>' : '') +
+    (ex ? '<div class="card"><div class="row2"><b>Ahorro para el pago extra</b><span style="color:var(--muted)">' + (c.extraMes ? MES[Number(c.extraMes.split('-')[1]) - 1].slice(0, 3) : 'sin mes') + '</span></div><div class="row2" style="align-items:baseline"><span style="font-size:24px;font-weight:700;font-variant-numeric:tabular-nums">' + eur(ahorroNow()) + '</span><span style="color:var(--muted)">de ' + eur(ex) + ' (extra + ' + c.fee + ' % de comisión)</span></div><div class="bar"><i style="width:' + pct + '%"></i></div></div>' : '') +
     debtChart() +
     '<button class="btn sec" id="deuda">Editar plan de la deuda y ahorro</button>' +
     '<h2>Metas</h2>' + (metas.map(g => {
