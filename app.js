@@ -530,8 +530,15 @@ function debtChart() {
     sc.map(o => '<div style="display:flex;flex-direction:column;gap:2px"><span><i style="display:inline-block;width:10px;height:10px;border-radius:5px;background:' + o.col + ';margin-right:6px"></i><b>' + o.n + '</b></span><span style="margin-left:16px;font-size:13px"><b>' + mfmt(o.end) + '</b> · ' + eur(o.cost) + ' de coste' + (o.cost < base ? ' <b class="pos">(−' + eur(base - o.cost) + ')</b>' : '') + '</span></div>').join('') +
     '<div class="sub" style="margin:0">Coste = intereses + comisión de cancelación. "Liquidar con el ahorro" supone no hacer el pago extra y liquidar en cuanto tu ahorro del coche (con su aportación mensual actual) cubra lo que debes más la comisión.</div></div>';
 }
+const okMes = k => /^\d{4}-(0[1-9]|1[0-2])$/.test(k || '');
+function monthPick(id, v) {
+  const [y, m] = okMes(v) ? v.split('-') : ['', ''], y0 = new Date().getFullYear();
+  return '<div class="f" style="flex:1"><select class="inp" id="' + id + 'm" aria-label="Mes"><option value="">Mes</option>' + MES.map((n, i) => '<option value="' + pad(i + 1) + '"' + (m === pad(i + 1) ? ' selected' : '') + '>' + n.slice(0, 3) + '</option>').join('') + '</select><select class="inp" id="' + id + 'y" aria-label="Año"><option value="">Año</option>' + Array.from({ length: 12 }, (_, i) => y0 + i).map(a => '<option value="' + a + '"' + (y === String(a) ? ' selected' : '') + '>' + a + '</option>').join('') + '</select></div>';
+}
+const readMes = id => { const m = $('#' + id + 'm').value, y = $('#' + id + 'y').value; return m && y ? y + '-' + m : ''; };
 function metaPlan(g) {
-  if (!g.hasta) return null;
+  if (!okMes(g.hasta)) return null;
+  if (!okMes(g.desde)) g = Object.assign({}, g, { desde: '' });
   const n = new Date(), idx = k => { const [y, m] = k.split('-').map(Number); return y * 12 + m; }, nowI = n.getFullYear() * 12 + n.getMonth() + 1;
   const falta = Math.max(0, g.goal - g.now), late = idx(g.hasta) - nowI, early = g.desde ? idx(g.desde) - nowI : late;
   const per = k => Math.round(falta / Math.max(1, k));
@@ -567,11 +574,11 @@ function viewMetas() {
 function openMeta(g) {
   const ed = !!g, st = ed ? Object.assign({}, g) : { id: newId(), n: '', when: '', goal: 0, now: 0, color: '#0B7A6B' };
   const bg = $('#sheetBg'), sh = $('#sheet'), close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
-  sh.innerHTML = '<div style="font-weight:700;font-size:18px">' + (ed ? 'Editar meta' : 'Nueva meta') + '</div><input class="inp" id="mn" placeholder="Nombre" value="' + esc(st.n) + '"><input class="inp" id="mw" placeholder="Nota (opcional)" value="' + esc(st.when) + '"><div class="sub" style="margin:0">Fecha objetivo: pon solo "hasta" si es una fecha concreta, o "desde" y "hasta" si es un rango.</div><div class="f"><input class="inp" id="md" type="month" value="' + (st.desde || '') + '" aria-label="Desde"><input class="inp" id="mh" type="month" value="' + (st.hasta || '') + '" aria-label="Hasta"></div><div class="f"><input class="inp" id="mg" type="number" step="0.01" inputmode="decimal" placeholder="Objetivo €" value="' + (st.goal ? st.goal / 100 : '') + '"><input class="inp" id="mo" type="number" step="0.01" inputmode="decimal" placeholder="Llevas €" value="' + (st.now ? st.now / 100 : '') + '"></div><button class="btn" id="sv">Guardar</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
+  sh.innerHTML = '<div style="font-weight:700;font-size:18px">' + (ed ? 'Editar meta' : 'Nueva meta') + '</div><input class="inp" id="mn" placeholder="Nombre" value="' + esc(st.n) + '"><input class="inp" id="mw" placeholder="Nota (opcional)" value="' + esc(st.when) + '"><div class="sub" style="margin:0">Fecha objetivo: pon solo "hasta" si es una fecha concreta, o "desde" y "hasta" si es un rango.</div><div class="sub" style="margin:0">Desde (opcional)</div>' + monthPick('md', st.desde) + '<div class="sub" style="margin:0">Hasta</div>' + monthPick('mh', st.hasta) + '<div class="f"><input class="inp" id="mg" type="number" step="0.01" inputmode="decimal" placeholder="Objetivo €" value="' + (st.goal ? st.goal / 100 : '') + '"><input class="inp" id="mo" type="number" step="0.01" inputmode="decimal" placeholder="Llevas €" value="' + (st.now ? st.now / 100 : '') + '"></div><button class="btn" id="sv">Guardar</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
   $('#cx').onclick = close;
   $('#sv').onclick = async () => {
     const n = $('#mn').value.trim(), goal = Math.round((parseFloat($('#mg').value) || 0) * 100); if (!n || !goal) { toast('Pon nombre y objetivo'); return; }
-    await store.saveItem('metas', Object.assign({}, st, { n, when: $('#mw').value.trim(), goal, now: Math.round((parseFloat($('#mo').value) || 0) * 100), desde: $('#md').value || '', hasta: $('#mh').value || $('#md').value || '' })); close(); toast('Guardado');
+    await store.saveItem('metas', Object.assign({}, st, { n, when: $('#mw').value.trim(), goal, now: Math.round((parseFloat($('#mo').value) || 0) * 100), desde: readMes('md'), hasta: readMes('mh') || readMes('md') })); close(); toast('Guardado');
   };
   const dl = $('#dl'); if (dl) dl.onclick = async () => { if (confirm('¿Eliminar?')) { await store.deleteItem('metas', st.id); close(); } };
   bg.onclick = e => { if (e.target === bg) close(); }; bg.classList.add('on');
