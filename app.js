@@ -77,12 +77,12 @@ const S = { fijos: [], anuales: [], metas: [], apartados: [], viajes: [], regalo
 function curKey() { return monthKeyOf(iso(new Date()), S.cfg.cycleStart); }
 
 function calc(movs) {
-  const r = { ing: 0, tras: 0, gas: 0, gasC: 0, libre: 0, fijos: 0, por: {} };
+  const r = { ing: 0, tras: 0, gas: 0, gasC: 0, libre: 0, fijos: 0, movIn: 0, movOut: 0, por: {} };
   movs.forEach(m => {
     const c = catFix(m);
     if (m.t === 'ingreso') r.ing += m.a;
     else if (m.t === 'traspaso') r.tras += m.a;
-    else if (m.t === 'mover') { /* entre apartados: no toca la cuenta */ }
+    else if (m.t === 'mover') { if (m.ap === 'cuenta') r.movIn += m.a; if (m.from === 'cuenta') r.movOut += m.a; }
     else {
       r.gas += m.a;
       if (!(m.m >= NEW_FROM && apOf(m))) r.gasC += m.a;
@@ -90,7 +90,7 @@ function calc(movs) {
       if (c === 'fijo') r.fijos += m.a;
     }
   });
-  r.queda = r.ing - r.tras - r.gasC;
+  r.queda = r.ing - r.tras - r.gasC + r.movIn - r.movOut;
   return r;
 }
 const libreBudget = () => S.apartados.length ? S.apartados.filter(x => x.kind === 'libre').reduce((s, x) => s + x.mes, 0) : Object.keys(CATS).filter(k => CATS[k].libre).reduce((s, k) => s + (S.cfg.budgets[k] || 0), 0);
@@ -178,7 +178,7 @@ function viewInicio() {
 }
 function viewRegistro() {
   const f = S.filter, q = S.q.trim().toLowerCase(), searching = !!(q || S.fap);
-  const apOK = m => !S.fap || (S.fap === 'cuenta' ? (m.t !== 'mover' && !(m.t === 'traspaso') && (!apOf(m) || apOf(m) === 'cuenta')) : (apOf(m) === S.fap || m.from === S.fap));
+  const apOK = m => !S.fap || (S.fap === 'cuenta' ? (m.t === 'mover' ? (m.ap === 'cuenta' || m.from === 'cuenta') : !(m.t === 'traspaso') && (!apOf(m) || apOf(m) === 'cuenta')) : (apOf(m) === S.fap || m.from === S.fap));
   const txtOK = m => !q || [m.n, catOf(m.t === 'mover' ? 'mover' : catFix(m)).n, apOf(m) ? apName(apOf(m)) : '', String(m.a / 100).replace('.', ','), m.d].join(' ').toLowerCase().includes(q);
   const items = (searching ? S.all : S.movs).filter(apOK).filter(txtOK).filter(m => f === 'todos' || m.t === f || (f === 'traspaso' && m.t === 'mover') || (f === 'libre' && m.t === 'gasto' && CATS[catFix(m)] && CATS[catFix(m)].libre)).sort((x, y) => y.d.localeCompare(x.d));
   const chips = [['todos', 'Todo'], ['gasto', 'Gastos'], ['libre', 'Libres'], ['ingreso', 'Ingresos'], ['traspaso', 'Traspasos']].map(c =>
@@ -284,6 +284,15 @@ function bindAjustes() {
 
 /* ------------------------- hoja de añadir / editar ------------------------- */
 function openMov(m) { if (m && m.t === 'mover') openMover(m); else openSheet(m); }
+function guessTp(n) {
+  const t = (n || '').toLowerCase();
+  if (/aloj|hotel|airbnb|apartamento|hostal|booking|habitaci/.test(t)) return 'aloj';
+  if (/vuelo|avi[oó]n|tren|bus|autob|taxi|uber|gasolina|peaje|parking|alquiler|ryanair|vueling|renfe/.test(t)) return 'transp';
+  if (/comida|cena|comer|desayuno|restaurante|bar |caf[eé]|menu|men[uú]/.test(t)) return 'comida';
+  if (/entrada|ticket|museo|excursi|tour|concierto|festival|actividad/.test(t)) return 'activ';
+  if (/compra|souvenir|regalo|ropa|tienda/.test(t)) return 'compras';
+  return null;
+}
 function openSheet(mov, preset) {
   const ed = !!mov;
   const st = { id: ed ? mov.id : newId(), t: ed ? mov.t : 'gasto', c: ed ? catFix(mov) : 'comidas', amt: ed ? String((mov.a / 100).toFixed(2)).replace(/\.00$/, '') : '', d: ed ? mov.d : iso(new Date()), n: ed ? (mov.n || '') : '', v: ed ? (mov.v || '') : (preset && preset.v) || '', tp: ed ? (mov.tp || '') : '', g: ed ? (mov.g || '') : '', ap: ed ? (mov.t === 'traspaso' ? (apOf(mov) || '') : (mov.ap || '')) : '' };
@@ -318,7 +327,7 @@ function openSheet(mov, preset) {
       if (!st.d) { toast('Pon una fecha'); return; }
       const m = ed && mov.d === st.d && mov.m ? mov.m : monthKeyOf(st.d, S.cfg.cycleStart);
       const out = { id: st.id, d: st.d, a, t: st.t, c: st.c, n: st.n.trim(), m };
-      if (st.t === 'gasto' && st.v) { out.v = st.v; out.tp = st.tp || 'otros'; }
+      if (st.t === 'gasto' && st.v) { out.v = st.v; out.tp = (st.tp && st.tp !== 'otros') ? st.tp : (guessTp(st.n) || st.tp || 'otros'); }
       if (st.t === 'gasto' && st.c === 'regalos' && st.g) out.g = st.g;
       if (st.t === 'gasto' && st.ap) out.ap = st.ap;
       if (st.t === 'traspaso' && S.apartados.length) { out.ap = st.ap || S.apartados[0].id; out.c = 'apartado'; }
@@ -366,6 +375,7 @@ function calcCuenta() {
   let v = c.saldo;
   S.all.filter(m => m.d > c.fecha).forEach(m => {
     if (m.t === 'ingreso') v += m.a; else if (m.t === 'traspaso') v -= m.a;
+    else if (m.t === 'mover') { if (m.ap === 'cuenta') v += m.a; if (m.from === 'cuenta') v -= m.a; }
     else if (m.t === 'gasto' && !(m.m >= NEW_FROM && apOf(m))) v -= m.a;
   });
   return v;
@@ -784,12 +794,12 @@ async function doMover(from, to, a) {
 function openMover(m) {
   const ed = !!(m && m.id), bg = $('#sheetBg'), sh = $('#sheet'), close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
   const st = ed ? Object.assign({}, m) : { id: newId(), from: (m && m.from) || (S.apartados[0] || {}).id, ap: (S.apartados[1] || {}).id, a: 0, d: iso(new Date()) };
-  const opt = sel => S.apartados.map(x => '<option value="' + x.id + '"' + (sel === x.id ? ' selected' : '') + '>' + esc(x.n) + ' (saldo ' + eur(saldoOf(x)) + ')</option>').join('');
-  sh.innerHTML = '<div style="font-weight:700;font-size:18px">Mover dinero entre apartados</div><div class="sub" style="margin:0">No cambia lo que hay en tu cuenta: solo reparte el dinero entre apartados.</div><div class="set"><span>Desde</span><select class="inp" id="mf" style="max-width:220px">' + opt(st.from) + '</select></div><div class="set"><span>Hacia</span><select class="inp" id="mt" style="max-width:220px">' + opt(st.ap) + '</select></div><div class="f"><input class="inp" id="ma" type="number" step="0.01" inputmode="decimal" placeholder="Importe €" value="' + (st.a ? st.a / 100 : '') + '"><input class="inp" id="md" type="date" value="' + st.d + '" style="max-width:150px"></div><button class="btn" id="sv">Mover</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
+  const opt = sel => '<option value="cuenta"' + (sel === 'cuenta' ? ' selected' : '') + '>Cuenta principal</option>' + S.apartados.map(x => '<option value="' + x.id + '"' + (sel === x.id ? ' selected' : '') + '>' + esc(x.n) + ' (saldo ' + eur(saldoOf(x)) + ')</option>').join('');
+  sh.innerHTML = '<div style="font-weight:700;font-size:18px">Mover dinero entre apartados</div><div class="sub" style="margin:0">Reparte dinero entre apartados. Si eliges la cuenta principal, sube o baja su saldo (p. ej. sacar 60 € del ahorro para la cuenta).</div><div class="set"><span>Desde</span><select class="inp" id="mf" style="max-width:220px">' + opt(st.from) + '</select></div><div class="set"><span>Hacia</span><select class="inp" id="mt" style="max-width:220px">' + opt(st.ap) + '</select></div><div class="f"><input class="inp" id="ma" type="number" step="0.01" inputmode="decimal" placeholder="Importe €" value="' + (st.a ? st.a / 100 : '') + '"><input class="inp" id="md" type="date" value="' + st.d + '" style="max-width:150px"></div><button class="btn" id="sv">Mover</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
   $('#cx').onclick = close;
   $('#sv').onclick = async () => {
     const from = $('#mf').value, to = $('#mt').value, a = Math.round((parseFloat($('#ma').value) || 0) * 100), d = $('#md').value;
-    if (!a || !d || from === to) { toast('Elige dos apartados distintos e importe'); return; }
+    if (!a || !d || from === to) { toast('Elige dos sitios distintos e importe'); return; }
     await store.saveMov(Object.assign({}, st, { from, ap: to, a, d, t: 'mover', c: 'mover', m: monthKeyOf(d, S.cfg.cycleStart) })); close(); toast('Movido');
   };
   const dl = $('#dl'); if (dl) dl.onclick = async () => { if (confirm('¿Eliminar este movimiento?')) { await store.deleteMov(st.id); close(); } };
