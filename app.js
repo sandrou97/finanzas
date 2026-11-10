@@ -349,6 +349,7 @@ function openSheet(mov, preset) {
         if (my < a) { out.tot = a; out.a = my; out.con = (st.con || '').trim(); }
       }
       if (st.t === 'ingreso' && st.c === 'reembolso') { if (!st.r) { toast('Elige qué gasto compartido salda'); return; } out.r = st.r; }
+      if (ed && mov.f && st.t === 'gasto') out.f = mov.f; // conserva el enlace con el fijo/anual al editar
       if (st.t === 'gasto' && st.c === 'regalos' && st.g) out.g = st.g;
       if (st.t === 'gasto' && st.ap) out.ap = st.ap;
       if (st.t === 'traspaso' && S.apartados.length) { out.ap = st.ap || S.apartados[0].id; out.c = 'apartado'; }
