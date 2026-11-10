@@ -73,7 +73,7 @@ const ico = (k, map) => '<svg viewBox="0 0 24 24" aria-hidden="true" style="widt
 const svg = k => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + ICON[k] + '</svg>';
 
 /* --------------------------------- estado --------------------------------- */
-const S = { fijos: [], anuales: [], metas: [], apartados: [], viajes: [], regalos: [], all: [], trip: null, prev: 'inicio', yr: new Date().getFullYear(), user: null, cfg: DEFAULT_CFG, tab: 'inicio', key: null, movs: [], filter: 'todos', q: '', fap: '', unsubM: null, unsubC: null, ready: false };
+const S = { fijos: [], anuales: [], metas: [], apartados: [], viajes: [], regalos: [], deudas: [], all: [], trip: null, prev: 'inicio', yr: new Date().getFullYear(), user: null, cfg: DEFAULT_CFG, tab: 'inicio', key: null, movs: [], filter: 'todos', q: '', fap: '', unsubM: null, unsubC: null, ready: false };
 
 function curKey() { return monthKeyOf(iso(new Date()), S.cfg.cycleStart); }
 
@@ -145,7 +145,7 @@ function shell(inner) {
   return '<main id="main">' + inner + '</main>' +
     '<button class="fab" id="fab" aria-label="Añadir" style="' + (['mas', 'resumen', 'estadisticas', 'ajustes'].includes(S.tab) ? 'display:none' : '') + '"><svg viewBox="0 0 24 24">' + ICON.plus + '</svg></button>' +
     '<nav class="tabs">' + [['inicio', 'Inicio', 'home'], ['registro', 'Registro', 'list'], ['fijos', 'Fijos', 'rep'], ['apartados', 'Apartados', 'wallet'], ['metas', 'Metas', 'target'], ['mas', 'Más', 'more']].map(t =>
-      '<button class="tab' + (S.tab === t[0] || t[0] === 'mas' && ['viajes', 'resumen', 'estadisticas', 'ajustes'].includes(S.tab) || t[0] === 'apartados' && ['anuales', 'regalos'].includes(S.tab) ? ' on' : '') + '" data-tab="' + t[0] + '">' + svg(t[2]) + t[1] + '</button>').join('') + '</nav>';
+      '<button class="tab' + (S.tab === t[0] || t[0] === 'mas' && ['viajes', 'pendientes', 'resumen', 'estadisticas', 'ajustes'].includes(S.tab) || t[0] === 'apartados' && ['anuales', 'regalos'].includes(S.tab) ? ' on' : '') + '" data-tab="' + t[0] + '">' + svg(t[2]) + t[1] + '</button>').join('') + '</nav>';
 }
 function mnav() {
   return '<div class="mnav"><button data-m="-1" aria-label="Mes anterior">' + svg('l') + '</button><span>' + label(S.key) + '</span><button data-m="1" aria-label="Mes siguiente">' + svg('r') + '</button></div>';
@@ -224,7 +224,7 @@ function render() {
   const app = $('#app');
   if (!S.user) { app.innerHTML = S.ready ? viewLogin() : '<div class="login"><div class="sub">Cargando…</div></div>'; const b = $('#login'); if (b) b.onclick = async () => { try { await store.signIn(); } catch (e) { $('#lerr').textContent = 'No se pudo iniciar sesión: ' + (e.code || e.message); } }; return; }
   const keep = $('#main') ? $('#main').scrollTop : 0;
-  let body; try { body = ({ inicio: viewInicio, registro: viewRegistro, fijos: viewFijos, apartados: viewApartados, anuales: viewAnuales, metas: viewMetas, mas: viewMas, viajes: () => S.trip ? viewViaje() : viewViajes(), regalos: viewRegalos, estadisticas: viewEstadisticas, resumen: viewResumen, ajustes: viewAjustes })[S.tab](); } catch (e) { console.error(e); body = '<div class="head"><div><h1>Error</h1></div></div><div class="hint warn">No se pudo mostrar esta pantalla: ' + esc(String(e && e.message || e)) + '</div>'; }
+  let body; try { body = ({ inicio: viewInicio, registro: viewRegistro, fijos: viewFijos, apartados: viewApartados, anuales: viewAnuales, metas: viewMetas, mas: viewMas, viajes: () => S.trip ? viewViaje() : viewViajes(), regalos: viewRegalos, estadisticas: viewEstadisticas, pendientes: viewPendientes, resumen: viewResumen, ajustes: viewAjustes })[S.tab](); } catch (e) { console.error(e); body = '<div class="head"><div><h1>Error</h1></div></div><div class="hint warn">No se pudo mostrar esta pantalla: ' + esc(String(e && e.message || e)) + '</div>'; }
   app.innerHTML = shell(body);
   $('#main').scrollTop = keep;
   app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { if (['ajustes', 'anuales', 'regalos'].includes(b.dataset.tab)) S.prev = S.tab; S.trip = null; S.tab = b.dataset.tab; render(); });
@@ -244,8 +244,9 @@ function render() {
   const qi = $('#q'); if (qi) { qi.oninput = () => { S.q = qi.value; const p = qi.selectionStart; render(); const n = $('#q'); n.focus(); n.setSelectionRange(p, p); }; $('#fap').onchange = e => { S.fap = e.target.value; render(); }; }
   const nb = $('#nomina'); if (nb) nb.onclick = openNomina;
   const cb = $('#concil'); if (cb) cb.onclick = openConciliar;
+  app.querySelectorAll('[data-deuda]').forEach(b => b.onclick = () => openPend(S.deudas.find(x => x.id === b.dataset.deuda)));
   const mvb = $('#mover'); if (mvb) mvb.onclick = () => openMover(null);
-  $('#fab').onclick = () => S.tab === 'fijos' ? openItem('fijos', null) : S.tab === 'anuales' ? openItem('anuales', null) : S.tab === 'apartados' ? openApartado(null) : S.tab === 'metas' ? openMeta(null) : S.tab === 'regalos' ? openForm('regalos', null) : S.tab === 'viajes' ? (S.trip ? openSheet(null, { v: S.trip }) : openForm('viajes', null)) : openSheet(null);
+  $('#fab').onclick = () => S.tab === 'fijos' ? openItem('fijos', null) : S.tab === 'anuales' ? openItem('anuales', null) : S.tab === 'apartados' ? openApartado(null) : S.tab === 'pendientes' ? openPend(null) : S.tab === 'metas' ? openMeta(null) : S.tab === 'regalos' ? openForm('regalos', null) : S.tab === 'viajes' ? (S.trip ? openSheet(null, { v: S.trip }) : openForm('viajes', null)) : openSheet(null);
   app.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => toggleFijo(b.dataset.chk));
   app.querySelectorAll('[data-achk]').forEach(b => b.onclick = () => toggleAnual(b.dataset.achk));
   app.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { const [k, id] = b.dataset.edit.split(':'); openItem(k, S[k].find(x => x.id === id)); });
@@ -265,7 +266,7 @@ function bindAjustes() {
   $('#exp').onclick = async () => {
     const take = k => once(cb => store.subscribeList(k, cb));
     const movs = S.all.slice();
-    const data = { version: 1, config: S.cfg, fijos: await take('fijos'), anuales: await take('anuales'), metas: await take('metas'), viajes: await take('viajes'), regalos: await take('regalos'), apartados: await take('apartados'), movs };
+    const data = { version: 1, config: S.cfg, fijos: await take('fijos'), anuales: await take('anuales'), metas: await take('metas'), viajes: await take('viajes'), regalos: await take('regalos'), apartados: await take('apartados'), deudas: await take('deudas'), movs };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
     const l = document.createElement('a'); l.href = url; l.download = 'finanzas-' + iso(new Date()) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
@@ -282,6 +283,7 @@ function bindAjustes() {
       for (const x of d.viajes || []) await store.saveItem('viajes', x);
       for (const x of d.regalos || []) await store.saveItem('regalos', x);
       for (const x of d.apartados || []) await store.saveItem('apartados', x);
+      for (const x of d.deudas || []) await store.saveItem('deudas', x);
       for (const x of d.movs || []) await store.saveMov(x);
       toast('Importado: ' + n + ' elementos');
     } catch (err) { toast('Archivo no válido'); console.error(err); }
@@ -389,10 +391,60 @@ function avisosCard() {
   const a = avisos(); if (!a.length) return '';
   return '<div class="card" style="gap:6px"><div style="font-weight:600">Avisos</div>' + a.slice(0, 6).map(x => '<button class="it" data-tab="' + x.go + '" style="padding:6px 0"><div class="m"><div class="n" style="white-space:normal;color:' + (x.k === 'neg' ? 'var(--neg)' : 'var(--warn-ink)') + '">' + (x.k === 'neg' ? '● ' : '○ ') + esc(x.t) + '</div></div></button>').join('') + '</div>';
 }
+const dPend = x => Math.max(0, x.a - (x.done || 0));
+const manual = dir => S.deudas.filter(x => x.dir === dir && dPend(x) > 0);
+const totDeben = () => deben().reduce((t, m) => t + pendOf(m), 0) + manual('me').reduce((t, x) => t + dPend(x), 0);
+const totDebo = () => manual('debo').reduce((t, x) => t + dPend(x), 0);
+const pendTxt = () => (totDeben() ? 'Te deben ' + eur(totDeben()) : 'Nadie te debe nada') + (totDebo() ? ' · debes ' + eur(totDebo()) : '');
+const dRow = x => '<button class="it" data-deuda="' + x.id + '" style="padding:6px 0"><div class="m"><div class="n">' + esc(x.who) + (x.n ? ' · ' + esc(x.n) : '') + '</div><div class="c">' + fdate(new Date(x.d + 'T00:00:00')) + (x.done ? ' · ya ' + (x.dir === 'me' ? 'cobrado' : 'pagado') + ' ' + eur(x.done) : '') + '</div></div><div class="a">' + eur(dPend(x)) + '</div></button>';
 function debenCard() {
-  const l = deben(); if (!l.length) return '';
-  const tot = l.reduce((t, m) => t + pendOf(m), 0);
-  return '<div class="card" style="gap:6px;border-color:' + SHC + '"><div class="row2"><b style="color:' + SHC + '">Te deben</b><b>' + eur(tot) + '</b></div>' + l.slice(0, 5).map(m => '<button class="it" data-id="' + m.id + '" style="padding:6px 0"><div class="m"><div class="n">' + esc(m.n || catOf(catFix(m)).n) + '</div><div class="c">' + (m.con ? esc(m.con) + ' · ' : '') + fdate(new Date(m.d + 'T00:00:00')) + '</div></div><div class="a">' + eur(pendOf(m)) + '</div></button>').join('') + '</div>';
+  const l = deben(), mm = manual('me'), md = manual('debo'); if (!l.length && !mm.length && !md.length) return '';
+  const tot = totDeben();
+  return (l.length || mm.length ? '<div class="card" style="gap:6px;border-color:' + SHC + '"><button class="row2" data-tab="pendientes" style="background:none;border:0;padding:0;text-align:left"><b style="color:' + SHC + '">Te deben</b><b>' + eur(tot) + '</b></button>' + mm.slice(0, 4).map(dRow).join('') + l.slice(0, 5).map(m => '<button class="it" data-id="' + m.id + '" style="padding:6px 0"><div class="m"><div class="n">' + esc(m.n || catOf(catFix(m)).n) + '</div><div class="c">' + (m.con ? esc(m.con) + ' · ' : '') + fdate(new Date(m.d + 'T00:00:00')) + '</div></div><div class="a">' + eur(pendOf(m)) + '</div></button>').join('') + '</div>' : '') +
+    (md.length ? '<div class="card" style="gap:6px;border-color:var(--neg)"><button class="row2" data-tab="pendientes" style="background:none;border:0;padding:0;text-align:left"><b class="neg">Debes</b><b>' + eur(totDebo()) + '</b></button>' + md.slice(0, 4).map(dRow).join('') + '</div>' : '');
+}
+function viewPendientes() {
+  const hist = S.deudas.filter(x => dPend(x) <= 0).sort((a, b) => b.d.localeCompare(a.d)).slice(0, 8);
+  const sec = (t, h) => h ? '<h2>' + t + '</h2><div class="list">' + h + '</div>' : '';
+  const comp = deben().map(m => '<button class="it" data-id="' + m.id + '"><div class="m"><div class="n">' + esc(m.n || catOf(catFix(m)).n) + '</div><div class="c" style="color:' + SHC + '">Gasto compartido' + (m.con ? ' · ' + esc(m.con) : '') + ' · ' + fdate(new Date(m.d + 'T00:00:00')) + '</div></div><div class="a">' + eur(pendOf(m)) + '</div></button>').join('');
+  return '<div class="head"><div style="display:flex;gap:10px;align-items:center"><button class="gear" data-tab="mas" aria-label="Volver">' + svg('l') + '</button><div><h1>Me deben / Debo</h1><div class="sub">Lo pendiente de cobrar y de pagar</div></div></div></div>' +
+    '<div class="grid2"><div class="stat"><div class="l">Te deben</div><div class="v" style="color:' + SHC + '">' + eur(totDeben()) + '</div></div><div class="stat"><div class="l">Debes</div><div class="v ' + (totDebo() ? 'neg' : '') + '">' + eur(totDebo()) + '</div></div></div>' +
+    sec('Te deben', comp + manual('me').map(dRow).join('')) + sec('Debes', manual('debo').map(dRow).join('')) +
+    (!comp && !manual('me').length && !manual('debo').length ? '<div class="empty">Nada pendiente.<br>Pulsa + para apuntar algo que te deban o que debas. Los gastos compartidos salen aquí solos.</div>' : '') +
+    sec('Saldadas', hist.map(x => dRow(x).replace('class="a"', 'class="a" style="opacity:.5"')).join(''));
+}
+function openPend(x) {
+  const ed = !!x, bg = $('#sheetBg'), sh = $('#sheet'), close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
+  const st = ed ? Object.assign({}, x) : { id: newId(), dir: 'me', who: '', a: 0, n: '', d: iso(new Date()), done: 0 };
+  const draw = () => {
+    sh.innerHTML = '<div style="font-weight:700;font-size:18px">' + (ed ? 'Editar' : 'Nuevo') + ' pendiente</div>' +
+      '<div class="seg" style="grid-template-columns:repeat(2,1fr)"><button data-dir="me" class="' + (st.dir === 'me' ? 'on' : '') + '">Me deben</button><button data-dir="debo" class="' + (st.dir === 'debo' ? 'on' : '') + '">Debo</button></div>' +
+      '<div class="f"><input class="inp" id="dw" placeholder="Quién (Iña, padres…)" value="' + esc(st.who) + '"><input class="inp" id="da" inputmode="decimal" placeholder="Importe €" style="max-width:110px" value="' + (st.a ? String(st.a / 100).replace('.', ',') : '') + '"></div>' +
+      '<div class="f"><input class="inp" id="dn" placeholder="Motivo (opcional)" value="' + esc(st.n) + '"><input class="inp" id="dd" type="date" value="' + st.d + '" style="max-width:150px"></div>' +
+      (ed ? '<div class="hint">Pendiente: <b>' + eur(dPend(st)) + '</b>' + (st.done ? ' (ya ' + (st.dir === 'me' ? 'cobrado' : 'pagado') + ' ' + eur(st.done) + ')' : '') + '</div>' +
+        '<div class="f"><input class="inp" id="dc" inputmode="decimal" placeholder="' + (st.dir === 'me' ? 'Importe que te devuelven' : 'Importe que pagas') + '" value="' + String(dPend(st) / 100).replace('.', ',') + '"></div>' +
+        '<label class="set" style="border:0"><span>Apuntarlo también en el Registro<div class="sub" style="margin:0">' + (st.dir === 'me' ? 'Como reembolso en tu cuenta' : 'Como gasto desde la cuenta') + '</div></span><input type="checkbox" id="dr" checked></label>' +
+        '<button class="btn" id="dgo">' + (st.dir === 'me' ? 'Registrar cobro' : 'Registrar pago') + '</button>' : '') +
+      '<button class="btn' + (ed ? ' sec' : '') + '" id="sv">Guardar</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
+    const keep = () => { st.who = $('#dw').value; st.n = $('#dn').value; st.d = $('#dd').value; st.a = Math.round((parseFloat(String($('#da').value).replace(',', '.')) || 0) * 100); };
+    sh.querySelectorAll('[data-dir]').forEach(b => b.onclick = () => { keep(); st.dir = b.dataset.dir; draw(); });
+    $('#cx').onclick = close;
+    const save = async () => { keep(); if (!st.who.trim() || !st.a) { toast('Pon quién e importe'); return false; } await store.saveItem('deudas', { id: st.id, dir: st.dir, who: st.who.trim(), a: st.a, n: st.n.trim(), d: st.d, done: st.done || 0 }); return true; };
+    $('#sv').onclick = async () => { if (await save()) { close(); toast('Guardado'); } };
+    const go = $('#dgo'); if (go) go.onclick = async () => {
+      keep(); const c = Math.round((parseFloat(String($('#dc').value).replace(',', '.')) || 0) * 100);
+      if (!c) { toast('Pon el importe'); return; }
+      st.done = (st.done || 0) + c; if (!(await save())) return;
+      if ($('#dr').checked) {
+        const d = iso(new Date()), m = monthKeyOf(d, S.cfg.cycleStart);
+        if (st.dir === 'me') await store.saveMov({ id: newId(), d, a: c, t: 'ingreso', c: 'reembolso', n: 'Cobro de ' + st.who.trim() + (st.n ? ' (' + st.n.trim() + ')' : ''), m });
+        else await store.saveMov({ id: newId(), d, a: c, t: 'gasto', c: 'imprev', ap: 'cuenta', n: 'Pago a ' + st.who.trim() + (st.n ? ' (' + st.n.trim() + ')' : ''), m });
+      }
+      close(); toast(st.dir === 'me' ? 'Cobro registrado' : 'Pago registrado');
+    };
+    const dl = $('#dl'); if (dl) dl.onclick = async () => { if (confirm('¿Eliminar este pendiente?')) { await store.deleteItem('deudas', st.id); close(); } };
+  };
+  bg.onclick = e => { if (e.target === bg) close(); }; draw(); bg.classList.add('on');
 }
 function calcCuenta() {
   const c = S.cfg.cuenta; if (!c) return null;
@@ -641,8 +693,8 @@ const fdFull = s => { const d = new Date(s + 'T00:00:00'); return d.getDate() + 
 const tripDates = t => t.a ? (t.b && t.b !== t.a ? fdFull(t.a) + ' – ' + fdFull(t.b) : fdFull(t.a)) : 'Fechas por decidir';
 function viewMas() {
   const L = (tab, ic, n, c) => '<button class="link" data-tab="' + tab + '"><div class="dot" style="background:var(--accent);color:var(--accent-ink)">' + svg(ic) + '</div><div class="m"><div class="n">' + n + '</div><div class="c">' + c + '</div></div>' + svg('chev') + '</button>';
-  return '<div class="head"><div><h1>Más</h1><div class="sub">Viajes, resumen, estadísticas y ajustes</div></div></div>' +
-    L('viajes', 'plane', 'Viajes', S.viajes.length + ' viajes') + L('resumen', 'chart', 'Resumen del año', 'Mes a mes') + L('estadisticas', 'trend', 'Estadísticas', 'Gráficas y datos curiosos') + L('ajustes', 'cog', 'Ajustes', 'Tema, ciclo, presupuestos y copia');
+  return '<div class="head"><div><h1>Más</h1><div class="sub">Viajes, pendientes, resumen y ajustes</div></div></div>' +
+    L('viajes', 'plane', 'Viajes', S.viajes.length + ' viajes') + L('pendientes', 'wallet', 'Me deben / Debo', pendTxt()) + L('resumen', 'chart', 'Resumen del año', 'Mes a mes') + L('estadisticas', 'trend', 'Estadísticas', 'Gráficas y datos curiosos') + L('ajustes', 'cog', 'Ajustes', 'Tema, ciclo, presupuestos y copia');
 }
 function viewViajes() {
   const list = S.viajes.slice().sort((a, b) => (b.a || '9999').localeCompare(a.a || '9999'));
@@ -876,7 +928,7 @@ function start() {
     if (!u) { render(); return; }
     S.unsubC = store.subscribeConfig(cfg => {
       const first = !S.key; S.cfg = cfg;
-      if (first) { S.key = curKey(); subscribe(); S.unsubA = store.subscribeAll(l => { S.all = l; if (S.user) render(); }); S.unsubL = ['fijos', 'anuales', 'metas', 'viajes', 'regalos', 'apartados'].map(k => store.subscribeList(k, l => { S[k] = l; if (S.user) render(); })); }
+      if (first) { S.key = curKey(); subscribe(); S.unsubA = store.subscribeAll(l => { S.all = l; if (S.user) render(); }); S.unsubL = ['fijos', 'anuales', 'metas', 'viajes', 'regalos', 'apartados', 'deudas'].map(k => store.subscribeList(k, l => { S[k] = l; if (S.user) render(); })); }
       render();
     });
   }).catch(e => { $('#app').innerHTML = '<div class="login"><div class="sub">Error al iniciar: ' + esc(e.message) + '</div></div>'; });
