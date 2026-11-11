@@ -56,9 +56,9 @@ h2{font-size:16px;font-weight:600;margin:0;padding:0 4px}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--soft);border-radius:12px;padding:3px}
 .seg button{border:0;background:none;border-radius:10px;padding:8px 0;font-size:13px;font-weight:600;color:var(--muted)}
 .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15)}
-.amt{text-align:center;font-size:44px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;padding:2px 0}
-.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.keys button{border:1px solid var(--line);background:var(--card);border-radius:14px;height:48px;font-size:20px;font-weight:600}
+.amt{text-align:center;font-size:clamp(34px,6vh,44px);font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;padding:2px 0}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.keys button{border:1px solid var(--line);background:var(--card);border-radius:14px;height:clamp(38px,6.2vh,48px);font-size:20px;font-weight:600}
 .f{display:flex;gap:8px}
 .f input,.f select,.inp{flex:1;min-width:0;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:11px 12px;font-size:15px}
 .btn{border:0;background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:14px;font-weight:700;font-size:16px;width:100%}
@@ -117,3 +117,8 @@ main{padding-bottom:96px}
 @media (min-width:900px){
   main>.chips{overflow:visible;flex-wrap:wrap}
 }
+
+.sheet .f>.inp,.sheet .f>input,.sheet .f>select{min-width:0;flex:1 1 130px}
+.sheet .f>#xm{flex:0 0 110px}
+.sheet .f>#sd{flex:0 0 150px}
+.sheet .chips .chip{padding:6px 11px}
