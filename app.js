@@ -73,18 +73,29 @@ const ico = (k, map) => '<svg viewBox="0 0 24 24" aria-hidden="true" style="widt
 const svg = k => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + ICON[k] + '</svg>';
 
 /* --------------------------------- estado --------------------------------- */
-const S = { fijos: [], anuales: [], metas: [], apartados: [], viajes: [], regalos: [], deudas: [], all: [], trip: null, prev: 'inicio', yr: new Date().getFullYear(), user: null, cfg: DEFAULT_CFG, tab: 'inicio', key: null, movs: [], filter: 'todos', q: '', fap: '', unsubM: null, unsubC: null, ready: false };
+const S = { fijos: [], anuales: [], metas: [], apartados: [], viajes: [], regalos: [], deudas: [], pagos: [], all: [], trip: null, prev: 'inicio', yr: new Date().getFullYear(), user: null, cfg: DEFAULT_CFG, tab: 'inicio', key: null, movs: [], filter: 'todos', q: '', fap: '', unsubM: null, unsubC: null, ready: false };
 
 function curKey() { return monthKeyOf(iso(new Date()), S.cfg.cycleStart); }
 
 // Dinero que sale de la cuenta por un gasto: todo si se paga desde la cuenta; si sale de un apartado,
 // solo la parte que no es tuya (en un gasto compartido el apartado paga solo tu parte).
-const cashOut = m => (m.m >= NEW_FROM && apOf(m)) ? (m.tot ? Math.max(0, m.tot - m.a) : 0) : (m.tot || m.a);
+// En un gasto a plazos solo sale de la cuenta el primer plazo (los demás son pagos aparte con 'pz').
+const cashOut = m => {
+  if (m.pl && m.pi) return (m.m >= NEW_FROM && apOf(m)) ? Math.max(0, m.pi - m.a) : m.pi;
+  return (m.m >= NEW_FROM && apOf(m)) ? (m.tot ? Math.max(0, m.tot - m.a) : 0) : (m.tot || m.a);
+};
 const reembOf = id => S.all.reduce((t, x) => t + (x.t === 'ingreso' && x.r === id ? x.a : 0), 0);
-const pendOf = m => (m.t === 'gasto' && m.tot && m.tot > m.a) ? Math.max(0, m.tot - m.a - reembOf(m.id)) : 0;
+const pendOf = m => (m.t === 'gasto' && !m.pz && m.tot && m.tot > m.a) ? Math.max(0, m.tot - m.a - reembOf(m.id)) : 0;
 const deben = () => S.all.filter(m => pendOf(m) > 0).sort((a, b) => a.d.localeCompare(b.d));
 const SHC = '#8B5CF6';
-const shTag = m => { if (!(m.t === 'gasto' && m.tot && m.tot > m.a)) return ''; const p = pendOf(m); return '<div class="c" style="color:' + SHC + ';font-weight:600">Compartido' + (m.con ? ' con ' + esc(m.con) : '') + ' · total ' + eur(m.tot) + ' · ' + (p > 0 ? 'te deben ' + eur(p) : 'saldado ✓') + '</div>'; };
+// Si un apartado se queda en negativo, el banco lo cubre con la cuenta principal.
+const deficit = () => S.apartados.filter(x => x.kind === 'libre' || x.kind === 'reserva').reduce((t, x) => t + Math.max(0, -saldoOf(x)), 0);
+const addM = (str, k) => { const [y, m, d] = str.split('-').map(Number), t = new Date(y, m - 1 + k, 1), dim = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate(); return t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(Math.min(d, dim)); };
+const pagoMovId = p => (p.g ? 'pz-' : 'pp-') + p.id;
+const pagoMov = p => S.all.find(m => m.id === pagoMovId(p));
+const pagoDone = p => !!pagoMov(p);
+const pagosPend = key => { const end = iso(cycleRange(key, S.cfg.cycleStart)[1]); return S.pagos.filter(p => !pagoDone(p) && p.d <= end).sort((a, b) => a.d.localeCompare(b.d)); };
+const shTag = m => { if (!(m.t === 'gasto' && !m.pz && m.tot && m.tot > m.a)) return ''; const p = pendOf(m); return '<div class="c" style="color:' + SHC + ';font-weight:600">Compartido' + (m.con ? ' con ' + esc(m.con) : '') + ' · total ' + eur(m.tot) + ' · ' + (p > 0 ? 'te deben ' + eur(p) : 'saldado ✓') + '</div>'; };
 function calc(movs) {
   const r = { ing: 0, tras: 0, gas: 0, gasC: 0, libre: 0, fijos: 0, movIn: 0, movOut: 0, reemb: 0, por: {} };
   movs.forEach(m => {
@@ -196,7 +207,7 @@ function viewRegistro() {
   items.forEach(m => {
     if (m.d !== last) { if (last) h += '</div>'; const d = new Date(m.d + 'T00:00:00'); h += '<div class="day">' + fdate(d) + '</div><div class="list">'; last = m.d; }
     const c = catOf(m.t === 'mover' ? 'mover' : catFix(m)), sign = m.t === 'ingreso' ? '+' : m.t === 'gasto' ? '−' : '';
-    h += '<button class="it" data-id="' + m.id + '"><div class="dot" style="background:' + c.col + '">' + ico(m.t === 'mover' ? 'mover' : m.t === 'traspaso' ? (apOf(m) || 'apartado') : catFix(m)) + '</div><div class="m"><div class="n">' + esc(m.n || (m.t === 'mover' ? 'Mover dinero' : c.n)) + '</div><div class="c">' + (m.t === 'mover' ? esc(apName(m.from)) + ' → ' + esc(apName(m.ap)) : m.t === 'traspaso' ? 'Traspaso → ' + esc(apOf(m) ? apName(apOf(m)) : c.n) : c.n + (m.t === 'gasto' && apOf(m) && apOf(m) !== DEFAP[catFix(m)] ? ' · de ' + esc(apName(apOf(m))) : '') + (m.r ? ' · saldo de ' + esc((S.all.find(x => x.id === m.r) || {}).n || 'un gasto') : '')) + '</div>' + shTag(m) + '</div><div class="a ' + (m.t === 'ingreso' ? 'pos' : '') + '">' + sign + eur(m.a) + (m.tot && m.tot > m.a ? '<div class="c" style="text-align:right;font-weight:400">de ' + eur(m.tot) + '</div>' : '') + '</div></button>';
+    h += '<button class="it" data-id="' + m.id + '"><div class="dot" style="background:' + c.col + '">' + ico(m.t === 'mover' ? 'mover' : m.t === 'traspaso' ? (apOf(m) || 'apartado') : catFix(m)) + '</div><div class="m"><div class="n">' + esc(m.n || (m.t === 'mover' ? 'Mover dinero' : c.n)) + '</div><div class="c">' + (m.t === 'mover' ? esc(apName(m.from)) + ' → ' + esc(apName(m.ap)) : m.t === 'traspaso' ? 'Traspaso → ' + esc(apOf(m) ? apName(apOf(m)) : c.n) : m.pz ? 'Plazo pagado · de la cuenta principal' : c.n + (m.pl ? ' · a ' + m.pl + ' plazos' : '') + (m.t === 'gasto' && apOf(m) && apOf(m) !== DEFAP[catFix(m)] ? ' · de ' + esc(apName(apOf(m))) : '') + (m.r ? ' · saldo de ' + esc((S.all.find(x => x.id === m.r) || {}).n || 'un gasto') : '')) + '</div>' + shTag(m) + '</div><div class="a ' + (m.t === 'ingreso' ? 'pos' : '') + '">' + sign + eur(m.pz ? m.tot : m.a) + (m.tot && m.tot > m.a && !m.pz ? '<div class="c" style="text-align:right;font-weight:400">de ' + eur(m.tot) + '</div>' : '') + '</div></button>';
   });
   if (last) h += '</div>';
   return '<div class="head"><div><h1>Registro</h1><div class="sub">' + items.length + ' movimientos' + (searching ? ' · en todos los ciclos' : '') + (searching ? ' · ' + eur(items.reduce((t, m) => t + (m.t === 'gasto' ? m.a : 0), 0)) + ' en gastos' : '') + '</div></div>' + (searching ? '' : mnav()) + '</div>' +
@@ -249,6 +260,9 @@ function render() {
   $('#fab').onclick = () => S.tab === 'fijos' ? openItem('fijos', null) : S.tab === 'anuales' ? openItem('anuales', null) : S.tab === 'apartados' ? openApartado(null) : S.tab === 'pendientes' ? openPend(null) : S.tab === 'metas' ? openMeta(null) : S.tab === 'regalos' ? openForm('regalos', null) : S.tab === 'viajes' ? (S.trip ? openSheet(null, { v: S.trip }) : openForm('viajes', null)) : openSheet(null);
   app.querySelectorAll('[data-chk]').forEach(b => b.onclick = () => toggleFijo(b.dataset.chk));
   app.querySelectorAll('[data-achk]').forEach(b => b.onclick = () => toggleAnual(b.dataset.achk));
+  app.querySelectorAll('[data-pchk]').forEach(b => b.onclick = () => togglePago(b.dataset.pchk));
+  app.querySelectorAll('[data-pago]').forEach(b => b.onclick = () => openPago(S.pagos.find(x => x.id === b.dataset.pago)));
+  const ap2 = $('#addpago'); if (ap2) ap2.onclick = () => openPago(null);
   app.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { const [k, id] = b.dataset.edit.split(':'); openItem(k, S[k].find(x => x.id === id)); });
   if (S.tab === 'ajustes') bindAjustes();
 }
@@ -266,7 +280,7 @@ function bindAjustes() {
   $('#exp').onclick = async () => {
     const take = k => once(cb => store.subscribeList(k, cb));
     const movs = S.all.slice();
-    const data = { version: 1, config: S.cfg, fijos: await take('fijos'), anuales: await take('anuales'), metas: await take('metas'), viajes: await take('viajes'), regalos: await take('regalos'), apartados: await take('apartados'), deudas: await take('deudas'), movs };
+    const data = { version: 1, config: S.cfg, fijos: await take('fijos'), anuales: await take('anuales'), metas: await take('metas'), viajes: await take('viajes'), regalos: await take('regalos'), apartados: await take('apartados'), deudas: await take('deudas'), pagos: await take('pagos'), movs };
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }));
     const l = document.createElement('a'); l.href = url; l.download = 'finanzas-' + iso(new Date()) + '.json'; l.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
@@ -284,6 +298,7 @@ function bindAjustes() {
       for (const x of d.regalos || []) await store.saveItem('regalos', x);
       for (const x of d.apartados || []) await store.saveItem('apartados', x);
       for (const x of d.deudas || []) await store.saveItem('deudas', x);
+      for (const x of d.pagos || []) await store.saveItem('pagos', x);
       for (const x of d.movs || []) await store.saveMov(x);
       toast('Importado: ' + n + ' elementos');
     } catch (err) { toast('Archivo no válido'); console.error(err); }
@@ -294,7 +309,11 @@ function bindAjustes() {
 }
 
 /* ------------------------- hoja de añadir / editar ------------------------- */
-function openMov(m) { if (m && m.t === 'mover') openMover(m); else openSheet(m); }
+function openMov(m) {
+  if (m && m.t === 'mover') openMover(m);
+  else if (m && m.pz) { if (confirm('Es el pago de un plazo (' + eur(m.tot) + '). ¿Deshacerlo y volver a dejarlo como pendiente?')) store.deleteMov(m.id); }
+  else openSheet(m);
+}
 function guessTp(n) {
   const t = (n || '').toLowerCase();
   if (/aloj|hotel|airbnb|apartamento|hostal|booking|habitaci/.test(t)) return 'aloj';
@@ -306,9 +325,15 @@ function guessTp(n) {
 }
 function openSheet(mov, preset) {
   const ed = !!mov;
-  const st = { id: ed ? mov.id : newId(), t: ed ? mov.t : 'gasto', c: ed ? catFix(mov) : 'comidas', amt: ed ? String(((mov.tot || mov.a) / 100).toFixed(2)).replace(/\.00$/, '') : '', d: ed ? mov.d : iso(new Date()), n: ed ? (mov.n || '') : '', v: ed ? (mov.v || '') : (preset && preset.v) || '', tp: ed ? (mov.tp || '') : '', g: ed ? (mov.g || '') : '', sh: !!(ed && mov.tot && mov.tot > mov.a), my: ed && mov.tot ? String(mov.a / 100).replace('.', ',') : '', con: ed ? (mov.con || '') : '', r: ed ? (mov.r || '') : '', ap: ed ? (mov.t === 'traspaso' ? (apOf(mov) || '') : (mov.ap || '')) : '' };
+  const st = { id: ed ? mov.id : newId(), t: ed ? mov.t : 'gasto', c: ed ? catFix(mov) : 'comidas', amt: ed ? String(((mov.tot || mov.a) / 100).toFixed(2)).replace(/\.00$/, '') : '', d: ed ? mov.d : iso(new Date()), n: ed ? (mov.n || '') : '', v: ed ? (mov.v || '') : (preset && preset.v) || '', tp: ed ? (mov.tp || '') : '', g: ed ? (mov.g || '') : '', sh: !!(ed && mov.tot && mov.tot > mov.a), my: ed && mov.tot ? String(mov.a / 100).replace('.', ',') : '', con: ed ? (mov.con || '') : '', r: ed ? (mov.r || '') : '', ap: ed ? (mov.t === 'traspaso' ? (apOf(mov) || '') : (mov.ap || '')) : '', pl: 0, pd: '' };
   if (!ed && S.apartados.length) st.ap = '';
   const bg = $('#sheetBg'), sh = $('#sheet');
+  const plUI = () => {
+    if (ed && mov.pl) return '<div class="sub" style="margin:0">A ' + mov.pl + ' plazos de ' + eur(mov.pi) + '. Los pendientes se gestionan en Fijos → Previstos.</div>';
+    const tot = Math.round(parseFloat(st.amt || '0') * 100), per = st.pl ? Math.round(tot / st.pl) : 0;
+    return '<div class="f" style="align-items:center"><button class="chip' + (st.pl ? ' on' : '') + '" id="xpl">A plazos</button>' + (st.pl ? '<select class="inp" id="xpn" style="max-width:110px">' + [2, 3, 4, 5, 6, 8, 10, 12].map(n => '<option value="' + n + '"' + (st.pl === n ? ' selected' : '') + '>' + n + ' pagos</option>').join('') + '</select><input class="inp" id="xpd" type="date" value="' + (st.pd || addM(st.d, 1)) + '" style="max-width:150px">' : '') + '</div>' +
+      (st.pl ? '<div class="sub" style="margin:0">Hoy sale el 1.er pago (' + eur(per) + '); el resto queda como previsto desde la fecha elegida, cada mes.</div>' : '');
+  };
   const draw = () => {
     const a = st.amt === '' ? '0' : st.amt.replace('.', ',');
     sh.innerHTML = '<div class="seg">' + Object.keys(TIPOS).map(t => '<button data-t="' + t + '" class="' + (st.t === t ? 'on' : '') + '">' + TIPOS[t] + '</button>').join('') + '</div>' +
@@ -318,6 +343,7 @@ function openSheet(mov, preset) {
       '<div class="chips" style="flex-wrap:wrap' + (st.t === 'traspaso' && S.apartados.length ? ';display:none' : '') + '">' + catsOf(st.t).map(k => '<button class="chip' + (st.c === k ? ' on' : '') + '" data-c="' + k + '">' + CATS[k].n + '</button>').join('') + '</div>' +
       (st.t === 'gasto' ? '<div class="f"><select class="inp" id="xv"><option value="">Sin viaje</option>' + S.viajes.map(v => '<option value="' + v.id + '"' + (st.v === v.id ? ' selected' : '') + '>' + esc(v.n) + '</option>').join('') + '</select>' + (st.v ? '<select class="inp" id="xt">' + Object.keys(TP).map(k => '<option value="' + k + '"' + (st.tp === k ? ' selected' : '') + '>' + TP[k] + '</option>').join('') + '</select>' : '') + '</div>' : '') +
       (st.t === 'gasto' ? '<div class="f" style="align-items:center"><button class="chip' + (st.sh ? ' on' : '') + '" id="xs" style="' + (st.sh ? 'background:' + SHC + ';border-color:' + SHC : '') + '">Compartido</button>' + (st.sh ? '<input class="inp" id="xc" placeholder="Con quién (Iña, padres…)" value="' + esc(st.con) + '"><input class="inp" id="xm" inputmode="decimal" placeholder="Tu parte €" style="max-width:100px" value="' + esc(st.my) + '">' : '') + '</div>' : '') +
+      (st.t === 'gasto' ? plUI() : '') +
       (st.t === 'ingreso' && st.c === 'reembolso' ? '<select class="inp" id="xr"><option value="">¿Qué gasto compartido salda?</option>' + deben().concat(S.all.filter(m => m.id === st.r && pendOf(m) <= 0)).map(m => '<option value="' + m.id + '"' + (st.r === m.id ? ' selected' : '') + '>' + esc(m.n || catOf(catFix(m)).n) + (m.con ? ' · ' + esc(m.con) : '') + ' · pendiente ' + eur(pendOf(m)) + '</option>').join('') + '</select>' : '') +
       (st.t === 'gasto' && st.c === 'regalos' ? '<select class="inp" id="xg"><option value="">¿Para quién?</option>' + S.regalos.map(v => '<option value="' + v.id + '"' + (st.g === v.id ? ' selected' : '') + '>' + esc(v.n) + '</option>').join('') + '</select>' : '') +
       '<div class="f"><input id="sn" placeholder="Concepto (opcional)" value="' + esc(st.n) + '"><input id="sd" type="date" value="' + st.d + '" style="max-width:150px"></div>' +
@@ -333,6 +359,8 @@ function openSheet(mov, preset) {
       draw();
     });
     const xs = $('#xs'); if (xs) xs.onclick = () => { keepText(); if (!st.sh) { st.sh = true; if (ed && !mov.tot && st.amt && !st.my) { st.my = st.amt.replace('.', ','); st.amt = ''; } } else { st.sh = false; if (st.my) { st.amt = st.my.replace(',', '.'); } st.my = ''; } draw(); };
+    const xpl = $('#xpl'); if (xpl) xpl.onclick = () => { keepText(); st.pl = st.pl ? 0 : 3; draw(); };
+    const xpn = $('#xpn'); if (xpn) xpn.onchange = () => { keepText(); draw(); };
     const xr = $('#xr'); if (xr) xr.onchange = () => { keepText(); const g = S.all.find(m => m.id === st.r); if (g) { if (!st.amt) st.amt = String(pendOf(g) / 100); if (!st.n) st.n = 'Bizum' + (g.con ? ' de ' + g.con : ''); } draw(); };
     const xv = $('#xv'); if (xv) xv.onchange = () => { keepText(); if (st.v && !st.tp) st.tp = 'otros'; draw(); };
     $('#cx').onclick = close;
@@ -349,15 +377,22 @@ function openSheet(mov, preset) {
         if (my < a) { out.tot = a; out.a = my; out.con = (st.con || '').trim(); }
       }
       if (st.t === 'ingreso' && st.c === 'reembolso') { if (!st.r) { toast('Elige qué gasto compartido salda'); return; } out.r = st.r; }
+      let plan = null;
+      if (st.t === 'gasto' && ed && mov.pl) { out.pl = mov.pl; out.pi = Math.round((out.tot || out.a) / mov.pl); }
+      else if (st.t === 'gasto' && st.pl >= 2) { const n = st.pl, tot = out.tot || out.a, pi = Math.round(tot / n); out.pl = n; out.pi = pi; plan = { n, pi, tot, d2: st.pd || addM(st.d, 1) }; }
       if (ed && mov.f && st.t === 'gasto') out.f = mov.f; // conserva el enlace con el fijo/anual al editar
       if (st.t === 'gasto' && st.c === 'regalos' && st.g) out.g = st.g;
       if (st.t === 'gasto' && st.ap) out.ap = st.ap;
       if (st.t === 'traspaso' && S.apartados.length) { out.ap = st.ap || S.apartados[0].id; out.c = 'apartado'; }
-      try { await store.saveMov(out); close(); toast(ed ? 'Guardado' : 'Añadido'); } catch (e) { toast('Error al guardar'); console.error(e); }
+      try {
+        await store.saveMov(out);
+        if (plan) for (let k = 2; k <= plan.n; k++) await store.saveItem('pagos', { id: 'pl-' + st.id + '-' + k, n: (out.n || catOf(out.c).n) + ' · plazo ' + k + ' de ' + plan.n, a: k === plan.n ? plan.tot - plan.pi * (plan.n - 1) : plan.pi, d: addM(plan.d2, k - 2), g: st.id, c: out.c });
+        close(); toast(ed ? 'Guardado' : 'Añadido');
+      } catch (e) { toast('Error al guardar'); console.error(e); }
     };
-    const dl = $('#dl'); if (dl) dl.onclick = async () => { if (confirm('¿Eliminar este movimiento?')) { await store.deleteMov(st.id); close(); toast('Eliminado'); } };
+    const dl = $('#dl'); if (dl) dl.onclick = async () => { if (confirm('¿Eliminar este movimiento?')) { for (const p of S.pagos.filter(x => x.g === st.id)) { await store.deleteMov('pz-' + p.id); await store.deleteItem('pagos', p.id); } await store.deleteMov(st.id); close(); toast('Eliminado'); } };
   };
-  const keepText = () => { const n = $('#sn'), d = $('#sd'), v = $('#xv'), t = $('#xt'), g = $('#xg'), xp = $('#xp'), xa = $('#xa'); if (xp) st.ap = xp.value; if (xa) st.ap = xa.value; if (n) st.n = n.value; if (d) st.d = d.value; if (v) st.v = v.value; if (t) st.tp = t.value; if (g) st.g = g.value; const xc = $('#xc'), xm = $('#xm'), xr = $('#xr'); if (xc) st.con = xc.value; if (xm) st.my = xm.value; if (xr) st.r = xr.value; };
+  const keepText = () => { const n = $('#sn'), d = $('#sd'), v = $('#xv'), t = $('#xt'), g = $('#xg'), xp = $('#xp'), xa = $('#xa'); if (xp) st.ap = xp.value; if (xa) st.ap = xa.value; if (n) st.n = n.value; if (d) st.d = d.value; if (v) st.v = v.value; if (t) st.tp = t.value; if (g) st.g = g.value; const xpn = $('#xpn'), xpd = $('#xpd'); if (xpn) st.pl = +xpn.value; if (xpd) st.pd = xpd.value; const xc = $('#xc'), xm = $('#xm'), xr = $('#xr'); if (xc) st.con = xc.value; if (xm) st.my = xm.value; if (xr) st.r = xr.value; };
   const close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
   bg.onclick = e => { if (e.target === bg) close(); };
   draw(); bg.classList.add('on');
@@ -377,12 +412,19 @@ function fijoDate(day) {
 }
 function avisos() {
   const out = [], today = new Date(); today.setHours(0, 0, 0, 0);
-  S.apartados.forEach(x => { const s = saldoOf(x); if (s < 0) out.push({ k: 'neg', t: x.n + ' está en negativo (' + eur(s) + ')', go: 'apartados' }); });
+  S.apartados.forEach(x => { const s = saldoOf(x); if (s < 0) out.push({ k: 'neg', t: x.n + ' está en negativo (' + eur(s) + ') · lo cubre la cuenta principal', go: 'apartados' }); });
   S.fijos.filter(x => !paidMov(x)).forEach(x => {
     const dd = Math.round((fijoDate(x.day) - today) / 864e5);
     if (dd < 0) out.push({ k: 'neg', t: x.n + ' (' + eur(x.a) + ') tenía que salir hace ' + (-dd) + (dd === -1 ? ' día' : ' días'), go: 'fijos' });
     else if (dd <= 3) out.push({ k: 'warn', t: x.n + ' (' + eur(x.a) + ') sale ' + (dd === 0 ? 'hoy' : dd === 1 ? 'mañana' : 'en ' + dd + ' días'), go: 'fijos' });
   });
+  S.pagos.filter(p => !pagoDone(p)).forEach(p => {
+    const dd = Math.round((new Date(p.d + 'T00:00:00') - today) / 864e5);
+    if (dd < 0) out.push({ k: 'neg', t: p.n + ' (' + eur(p.a) + ') vencía hace ' + (-dd) + (dd === -1 ? ' día' : ' días'), go: 'fijos' });
+    else if (dd <= 7) out.push({ k: 'warn', t: p.n + ' (' + eur(p.a) + ') vence ' + (dd === 0 ? 'hoy' : dd === 1 ? 'mañana' : 'en ' + dd + ' días'), go: 'fijos' });
+  });
+  const c0 = calcCuenta();
+  if (c0 != null) { const lim = iso(new Date(today.getTime() + 30 * 864e5)), sp = sumA(S.pagos.filter(p => !pagoDone(p) && p.d <= lim)); if (sp && c0 - sp < 0) out.push({ k: 'neg', t: 'Con los previstos de los próximos 30 días la cuenta quedaría en ' + eur(c0 - sp), go: 'fijos' }); }
   const mes = S.apartados.filter(x => x.mes > 0), dn = S.movs.filter(m => m.t === 'traspaso').length;
   if (mes.length && !dn) out.push({ k: 'warn', t: 'Aún no has traspasado nada a apartados este ciclo', go: 'apartados' });
   const lb = libreBudget(); if (lb && calc(S.movs).libre > lb) out.push({ k: 'neg', t: 'Has superado la previsión libre del ciclo', go: 'inicio' });
@@ -455,7 +497,7 @@ function calcCuenta() {
     else if (m.t === 'mover') { if (m.ap === 'cuenta') v += m.a; if (m.from === 'cuenta') v -= m.a; }
     else if (m.t === 'gasto') v -= cashOut(m);
   });
-  return v;
+  return v - deficit();
 }
 function cuentaCard() {
   const v = calcCuenta(), c = S.cfg.cuenta;
@@ -463,7 +505,7 @@ function cuentaCard() {
 }
 function openConciliar() {
   const bg = $('#sheetBg'), sh = $('#sheet'), est = calcCuenta(), hist = (S.cfg.concil || []).slice(-3).reverse();
-  const estAp = S.apartados.filter(spendable).reduce((t, x) => t + saldoOf(x), 0), estAh = apById('ahorro') ? saldoOf(apById('ahorro')) : null;
+  const estAp = S.apartados.filter(spendable).reduce((t, x) => t + Math.max(0, saldoOf(x)), 0), estAh = apById('ahorro') ? saldoOf(apById('ahorro')) : null;
   const fld = (id, l, e) => '<div class="sub" style="margin:0">' + l + ' · la app dice <b>' + (e == null ? '—' : eur(e)) + '</b></div><input class="inp" id="' + id + '" inputmode="decimal" placeholder="Saldo real (€)"><div id="' + id + 'd" class="hint" style="display:none"></div>';
   sh.innerHTML = '<div style="font-weight:700;font-size:18px">Conciliar con el banco</div><div class="sub">Pon lo que ves en el banco; deja en blanco lo que no quieras comprobar.</div>' +
     fld('cb', 'Cuenta principal (sin apartados)', est) + fld('cp', 'Apartados dentro de la principal', estAp) + (estAh != null ? fld('cq', 'Cuenta ahorro (coche)', estAh) : '') +
@@ -497,9 +539,10 @@ function openNomina() {
   bg.classList.add('on');
 }
 function pendCard() {
-  if (!S.fijos.length) return '';
-  const f = fijosStats(), r = calc(S.movs), real = r.queda - f.pend;
-  return '<div class="card"><div class="row2"><span>Fijos pendientes de pagar</span><b>' + eur(f.pend) + '</b></div><div class="row2"><span>Te quedaría tras pagarlos</span><b class="' + (real < 0 ? 'neg' : 'pos') + '">' + eur(real) + '</b></div></div>';
+  const pp = pagosPend(S.key), ppS = sumA(pp);
+  if (!S.fijos.length && !pp.length) return '';
+  const f = fijosStats(), r = calc(S.movs), real = r.queda - f.pend - ppS;
+  return '<div class="card"><div class="row2"><span>Fijos pendientes de pagar</span><b>' + eur(f.pend) + '</b></div>' + (pp.length ? '<div class="row2"><span>Previstos pendientes (' + pp.length + ')</span><b>' + eur(ppS) + '</b></div>' : '') + '<div class="row2"><span>Te quedaría tras pagarlos</span><b class="' + (real < 0 ? 'neg' : 'pos') + '">' + eur(real) + '</b></div></div>';
 }
 function chk(on, attr, id) { return '<button class="chk' + (on ? ' on' : '') + '" ' + attr + '="' + id + '" aria-label="' + (on ? 'Pagado' : 'Marcar como pagado') + '">' + (on ? '<svg viewBox="0 0 24 24">' + ICON.tick + '</svg>' : '') + '</button>'; }
 function viewFijos() {
@@ -513,7 +556,41 @@ function viewFijos() {
   return '<div class="head"><div><h1>Fijos</h1><div class="sub">Lo que sale cada ciclo, sin falta</div></div>' + mnav() + '</div>' +
     '<div class="card"><div class="row2"><span style="color:var(--muted)">Fijos de este ciclo</span><span style="color:var(--muted)">' + eur(f.pagado) + ' de ' + eur(f.total) + '</span></div><div style="font-size:32px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums">' + eur(f.total) + '</div><div class="bar"><i style="width:' + pct + '%"></i></div><div class="sub">' + (f.nPend ? 'Te faltan <b style="color:var(--ink)">' + eur(f.pend) + '</b> por pagar este ciclo' : 'Todo pagado este ciclo') + '</div></div>' +
     '<h2>Cada mes</h2><div class="list">' + (fijos.map(item).join('') || '<div class="empty">Pulsa + para añadir un gasto fijo.</div>') + '</div>' +
+    previstosHtml() +
     '<div class="head" style="align-items:baseline"><h2 style="padding:0">Suscripciones</h2><span class="sub">' + eur(sm) + ' al mes · ' + eur(sm * 12) + ' al año</span></div><div class="list">' + (subs.map(item).join('') || '<div class="empty">Sin suscripciones.</div>') + '</div>';
+}
+function previstosHtml() {
+  const list = S.pagos.slice().sort((a, b) => a.d.localeCompare(b.d)).filter(p => { const m = pagoMov(p); return !m || m.m === S.key; });
+  const pend = sumA(S.pagos.filter(p => !pagoDone(p))), today = iso(new Date());
+  return '<div class="head" style="align-items:baseline"><h2 style="padding:0">Previstos y plazos</h2><span class="sub">' + eur(pend) + ' pendientes</span></div><div class="list">' + (list.map(p => {
+    const m = pagoMov(p), late = !m && p.d < today;
+    return '<div class="row">' + chk(!!m, 'data-pchk', p.id) + '<button class="m" data-pago="' + p.id + '"><div class="n" style="font-size:14px;font-weight:500">' + esc(p.n) + '</div><div class="c" style="font-size:12px;color:' + (late ? 'var(--neg)' : 'var(--muted)') + '">' + (m ? 'Pagado · ' + fdate(new Date(m.d + 'T00:00:00')) : (late ? 'Vencido · ' : 'Previsto · ') + fdate(new Date(p.d + 'T00:00:00'))) + '</div></button><div class="a" style="font-size:15px;font-weight:600;font-variant-numeric:tabular-nums">' + eur(p.a) + '</div></div>';
+  }).join('') || '<div class="empty">Sin pagos previstos. Añade uno o crea un gasto a plazos.</div>') + '</div><button class="btn sec" id="addpago">+ Añadir pago previsto</button>';
+}
+async function togglePago(id) {
+  const p = S.pagos.find(x => x.id === id); if (!p) return;
+  const mid = pagoMovId(p);
+  if (pagoDone(p)) { await store.deleteMov(mid); return; }
+  const d = iso(new Date()), m = monthKeyOf(d, S.cfg.cycleStart);
+  if (p.g) await store.saveMov({ id: mid, d, a: 0, tot: p.a, t: 'gasto', c: p.c || 'imprev', n: p.n, m, ap: 'cuenta', pz: p.g });
+  else await store.saveMov({ id: mid, d, a: p.a, t: 'gasto', c: p.c || 'imprev', n: p.n, m });
+}
+function openPago(p) {
+  const ed = !!p, bg = $('#sheetBg'), sh = $('#sheet'), st = ed ? Object.assign({}, p) : { id: newId(), n: '', a: 0, d: iso(new Date()), c: 'imprev' };
+  const close = () => { bg.classList.remove('on'); sh.innerHTML = ''; };
+  sh.innerHTML = '<div style="font-weight:700;font-size:18px">' + (ed ? 'Editar pago previsto' : 'Nuevo pago previsto') + '</div>' + (st.g ? '<div class="sub" style="margin:0">Plazo de un gasto a plazos: sale entero de la cuenta principal al marcarlo.</div>' : '') +
+    '<input class="inp" id="pn" placeholder="Concepto" value="' + esc(st.n) + '"><div class="f"><input class="inp" id="pa" type="number" step="0.01" inputmode="decimal" placeholder="Importe €" value="' + (st.a ? st.a / 100 : '') + '"><input class="inp" id="pd" type="date" value="' + st.d + '" style="max-width:150px"></div>' +
+    (st.g ? '' : '<select class="inp" id="pc">' + catsOf('gasto').map(k => '<option value="' + k + '"' + (st.c === k ? ' selected' : '') + '>' + CATS[k].n + '</option>').join('') + '</select>') +
+    '<button class="btn" id="sv">Guardar</button>' + (ed ? '<button class="btn del" id="dl">Eliminar</button>' : '') + '<button class="btn sec" id="cx">Cancelar</button>';
+  $('#cx').onclick = close; bg.onclick = e => { if (e.target === bg) close(); };
+  $('#sv').onclick = async () => {
+    const a = Math.round((parseFloat($('#pa').value) || 0) * 100), n = $('#pn').value.trim(), d = $('#pd').value;
+    if (!n || !a || !d) { toast('Pon concepto, importe y fecha'); return; }
+    const out = { id: st.id, n, a, d, c: st.g ? st.c : $('#pc').value }; if (st.g) out.g = st.g;
+    await store.saveItem('pagos', out); close(); toast('Guardado');
+  };
+  const dl = $('#dl'); if (dl) dl.onclick = async () => { if (confirm('¿Eliminar este pago previsto?')) { if (pagoDone(st)) await store.deleteMov(pagoMovId(st)); await store.deleteItem('pagos', st.id); close(); } };
+  bg.classList.add('on');
 }
 async function toggleFijo(id) {
   const it = S.fijos.find(x => x.id === id), m = paidMov(it);
@@ -823,10 +900,10 @@ const APCOL = ['#E08A2B', '#8B5CF6', '#2A6FDB', '#D6547F', '#8A94A6', '#E0559B',
 function viewApartados() {
   const aps = S.apartados.map(x => ({ x, s: saldoOf(x), sp: spentIn(x.id), pd: paidIn(x.id) }));
   const plan = aps.filter(z => z.x.mes > 0), pend = plan.reduce((t, z) => t + (trasIn(z.x.id).length ? 0 : z.x.mes), 0);
-  const sumK = k => aps.filter(z => z.x.kind === k).reduce((t, z) => t + z.s, 0);
-  const covers = aps.map(z => ({ z, c: coverFor(z.x, z.s) })).filter(q => q.c).map(q => q.c.none
-    ? '<div class="hint warn"><b>' + esc(q.z.x.n) + '</b> está en negativo (' + eur(q.z.s) + ') y ningún apartado tiene saldo suficiente para cubrirlo. Ajusta el saldo o mueve dinero en varias partes.</div>'
-    : '<div class="hint warn"><b>' + esc(q.z.x.n) + '</b> está en negativo (' + eur(q.z.s) + '). Puedes cubrirlo con <b>' + eur(q.c.a) + '</b> de <b>' + esc(q.c.from.n) + '</b> (saldo ' + eur(q.c.saldo) + '). <button class="chip on" style="margin-left:6px" data-cover="' + q.c.from.id + ':' + q.z.x.id + ':' + q.c.a + '">Mover ' + eur(q.c.a) + '</button></div>').join('');
+  const sumK = k => aps.filter(z => z.x.kind === k).reduce((t, z) => t + Math.max(0, z.s), 0);
+  const covers = aps.filter(z => z.s < 0 && spendable(z.x)).map(z => { const c = coverFor(z.x, z.s), a = -z.s;
+    return '<div class="hint warn"><b>' + esc(z.x.n) + '</b> está en negativo (' + eur(z.s) + '). Como en el banco, lo está cubriendo la cuenta principal (ya descontado de su saldo). <button class="chip on" style="margin-left:6px" data-cover="cuenta:' + z.x.id + ':' + a + '">Mover ' + eur(a) + ' de la principal</button>' +
+      (c && !c.none ? ' <button class="chip" data-cover="' + c.from.id + ':' + z.x.id + ':' + a + '">o de ' + esc(c.from.n) + '</button>' : '') + '</div>'; }).join('');
   const row = z => {
     const x = z.x, p = x.mes ? Math.min(100, Math.round(z.sp / x.mes * 100)) : (z.sp ? 100 : 0);
     const sub = x.kind === 'ahorro' ? 'Este ciclo: ' + eur(z.pd) + ' de ' + eur(x.mes) : 'Este ciclo: ' + eur(z.sp) + ' de ' + eur(x.mes);
@@ -929,7 +1006,7 @@ function start() {
     if (!u) { render(); return; }
     S.unsubC = store.subscribeConfig(cfg => {
       const first = !S.key; S.cfg = cfg;
-      if (first) { S.key = curKey(); subscribe(); S.unsubA = store.subscribeAll(l => { S.all = l; if (S.user) render(); }); S.unsubL = ['fijos', 'anuales', 'metas', 'viajes', 'regalos', 'apartados', 'deudas'].map(k => store.subscribeList(k, l => { S[k] = l; if (S.user) render(); })); }
+      if (first) { S.key = curKey(); subscribe(); S.unsubA = store.subscribeAll(l => { S.all = l; if (S.user) render(); }); S.unsubL = ['fijos', 'anuales', 'metas', 'viajes', 'regalos', 'apartados', 'deudas', 'pagos'].map(k => store.subscribeList(k, l => { S[k] = l; if (S.user) render(); })); }
       render();
     });
   }).catch(e => { $('#app').innerHTML = '<div class="login"><div class="sub">Error al iniciar: ' + esc(e.message) + '</div></div>'; });
